@@ -1787,6 +1787,7 @@ EXPORT_SYMBOL_GPL(device_move);
 void device_shutdown(void)
 {
 	struct device *dev;
+	pr_info("%s:%d\n", __func__, __LINE__);
 
 	spin_lock(&devices_kset->list_lock);
 	/*
@@ -1806,10 +1807,10 @@ void device_shutdown(void)
 		spin_unlock(&devices_kset->list_lock);
 
 		if (dev->bus && dev->bus->shutdown) {
-			dev_dbg(dev, "shutdown\n");
+			dev_err(dev, "shutdown\n");
 			dev->bus->shutdown(dev);
 		} else if (dev->driver && dev->driver->shutdown) {
-			dev_dbg(dev, "shutdown\n");
+			dev_err(dev, "shutdown\n");
 			dev->driver->shutdown(dev);
 		}
 		put_device(dev);
@@ -1818,4 +1819,5 @@ void device_shutdown(void)
 	}
 	spin_unlock(&devices_kset->list_lock);
 	async_synchronize_full();
+	pr_info("%s:%d\n", __func__, __LINE__);
 }

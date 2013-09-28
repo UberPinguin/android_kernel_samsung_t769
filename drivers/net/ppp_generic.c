@@ -1322,8 +1322,8 @@ static int ppp_mp_explode(struct ppp *ppp, struct sk_buff *skb)
 	i = 0;
 	list_for_each_entry(pch, &ppp->channels, clist) {
 		navail += pch->avail = (pch->chan != NULL);
-		pch->speed = pch->chan->speed;
 		if (pch->avail) {
+				pch->speed = pch->chan->speed;
 			if (skb_queue_empty(&pch->file.xq) ||
 				!pch->had_frag) {
 					if (pch->speed == 0)

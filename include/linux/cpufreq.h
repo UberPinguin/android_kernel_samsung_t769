@@ -343,6 +343,55 @@ static inline unsigned int cpufreq_quick_get(unsigned int cpu)
 #endif
 
 
+#if 1
+#define POWERSAVE_MODE_FREQ 810000
+#define INPUT_EDITOR_FREQ 1026000
+#define MIN_FREQ_LIMIT 384000
+#define LOW_MAX_FREQ_LIMIT 1188000
+#define MAX_FREQ_LIMIT 1512000
+
+#define LMF_INACTIVE_MAX_FREQ 1080000
+#define LMF_ACTIVE_MAX_FREQ MAX_FREQ_LIMIT
+
+
+enum {
+	SET_MIN = 0,
+	SET_MAX
+};
+
+enum {	
+	BOOT_CPU = 0,	
+	NON_BOOT_CPU
+};
+
+enum {
+	POWERSAVE = 1,
+	INPUT_EDITOR,
+	LMF,
+	UNI_PRO,
+	DVFS
+};
+
+#define MULTI_FACTOR 10
+
+enum {
+	POWERSAVING_START = POWERSAVE * MULTI_FACTOR,
+	POWERSAVING_STOP = POWERSAVING_START + 1,
+	INPUTEDITOR_START = INPUT_EDITOR * MULTI_FACTOR,
+	INPUTEDITOR_STOP = INPUTEDITOR_START + 1,
+	LMF_START = LMF * MULTI_FACTOR,
+	LMF_STOP = LMF_START + 1,
+	UNI_PRO_START = UNI_PRO * MULTI_FACTOR,
+	UNI_PRO_STOP = UNI_PRO_START + 1,
+	DVFS_START = DVFS * MULTI_FACTOR,
+	DVFS_STOP = DVFS_START + 1,
+	UNREGISTERED = 0
+};
+
+int cpufreq_set_limit(unsigned int flag);
+int cpufreq_set_limit_defered(unsigned int flag);
+#endif
+
 /*********************************************************************
  *                       CPUFREQ DEFAULT GOVERNOR                    *
  *********************************************************************/

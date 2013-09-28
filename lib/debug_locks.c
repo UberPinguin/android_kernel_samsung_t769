@@ -30,7 +30,7 @@ EXPORT_SYMBOL_GPL(debug_locks);
  * 'silent failure': nothing is printed to the console when
  * a locking bug is detected.
  */
-int debug_locks_silent;
+int debug_locks_silent = 1;
 
 /*
  * Generic 'turn off all lock debugging' function:

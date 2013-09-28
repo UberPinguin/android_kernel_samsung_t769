@@ -38,6 +38,8 @@
 #include <asm/localtimer.h>
 #include <asm/smp_plat.h>
 
+#include <mach/sec_debug.h>   /* onlyjazz */
+
 /*
  * as from 2.5, kernels no longer have an init_tasks structure
  * so we need some other way of telling a new secondary core
@@ -257,8 +259,6 @@ asmlinkage void __cpuinit secondary_start_kernel(void)
 	struct mm_struct *mm = &init_mm;
 	unsigned int cpu = smp_processor_id();
 
-	printk("CPU%u: Booted secondary processor\n", cpu);
-
 	/*
 	 * All kernel threads share the same mm context; grab a
 	 * reference and switch to it.
@@ -467,10 +467,14 @@ static DEFINE_SPINLOCK(stop_lock);
  */
 static void ipi_cpu_stop(unsigned int cpu)
 {
-	spin_lock(&stop_lock);
-	printk(KERN_CRIT "CPU%u: stopping\n", cpu);
-	dump_stack();
-	spin_unlock(&stop_lock);
+	if (system_state == SYSTEM_BOOTING ||
+	    system_state == SYSTEM_RUNNING) {
+		spin_lock(&stop_lock);
+		printk(KERN_CRIT "CPU%u: stopping\n", cpu);
+		dump_stack();
+		sec_debug_dump_stack();
+		spin_unlock(&stop_lock);
+	}
 
 	set_cpu_online(cpu, false);
 
@@ -553,6 +557,11 @@ asmlinkage void __exception do_IPI(struct pt_regs *regs)
 
 void smp_send_reschedule(int cpu)
 {
+	if (unlikely(cpu_is_offline(cpu))) {
+		pr_warn("%s: attempt to send resched-IPI to an offline cpu.\n",
+				__func__);
+		return;
+	}
 	send_ipi_message(cpumask_of(cpu), IPI_RESCHEDULE);
 }
 
@@ -560,7 +569,8 @@ void smp_send_stop(void)
 {
 	cpumask_t mask = cpu_online_map;
 	cpu_clear(smp_processor_id(), mask);
-	send_ipi_message(&mask, IPI_CPU_STOP);
+	if (!cpus_empty(mask))
+		send_ipi_message(&mask, IPI_CPU_STOP);
 }
 
 /*

@@ -486,6 +486,7 @@ struct usb_gadget {
 	unsigned			b_hnp_enable:1;
 	unsigned			a_hnp_support:1;
 	unsigned			a_alt_hnp_support:1;
+	unsigned			host_request:1;
 	const char			*name;
 	struct device			dev;
 };
@@ -879,6 +880,41 @@ struct usb_endpoint_descriptor *usb_find_endpoint(
 	struct usb_descriptor_header **src,
 	struct usb_descriptor_header **copy,
 	struct usb_endpoint_descriptor *match);
+
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+/* return copy of descriptor header given original descriptor set */
+struct usb_descriptor_header *
+usb_find_descriptor_header(
+	struct usb_descriptor_header **src,
+	struct usb_descriptor_header **copy,
+	struct usb_descriptor_header *match);
+
+int usb_change_interface_num(
+	struct usb_descriptor_header **src,
+	struct usb_descriptor_header **copy,
+	struct usb_interface_descriptor *match,
+	int num);
+
+int usb_change_iad_num(
+	struct usb_descriptor_header **src,
+	struct usb_descriptor_header **copy,
+	struct usb_interface_assoc_descriptor *match,
+	int num);
+
+#include <linux/usb/cdc.h>
+int usb_change_cdc_union_num(
+	struct usb_descriptor_header **src,
+	struct usb_descriptor_header **copy,
+	struct usb_cdc_union_desc *match,
+	int num,
+	int master);
+
+int usb_change_cdc_call_mgmt_num(
+	struct usb_descriptor_header **src,
+	struct usb_descriptor_header **copy,
+	struct usb_cdc_call_mgmt_descriptor *match,
+	int num);
+#endif
 
 /**
  * usb_free_descriptors - free descriptors returned by usb_copy_descriptors()

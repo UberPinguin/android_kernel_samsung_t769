@@ -52,3 +52,26 @@ obj-$(CONFIG_MAC80211_HWSIM)	+= mac80211_hwsim.o
 obj-$(CONFIG_WL12XX)	+= wl12xx/
 
 obj-$(CONFIG_IWM)	+= iwmc3200wifi/
+
+#
+# US_ATT
+#
+ifeq ($(SEC_PROJECT_REGION_OPERATOR),US_ATT)
+# Rev 01
+ifeq ($(SEC_PROJECT_HW_VER),01)
+obj-$(CONFIG_BROADCOM_WIFI)	+= bcm4329/
+# Rev 02~
+else
+obj-$(CONFIG_BROADCOM_WIFI)	+= bcm4330/
+endif
+#
+# KOR
+#
+else
+obj-$(CONFIG_BROADCOM_WIFI)	+= bcm4330/
+endif
+#
+
+obj-$(CONFIG_LIBRA_SDIOIF)	+= libra/
+
+obj-$(CONFIG_WCNSS_WLAN)	+= wcnss/

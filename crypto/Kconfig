@@ -31,6 +31,12 @@ config CRYPTO_FIPS
 	  this is. Note that CRYPTO_ANSI_CPRNG is required if this
 	  option is selected
 
+config CRYPTO_FIPS_INTEG_OFFSET
+	hex "FIPS integrity check zImage offset"
+        default 0x17000000
+        help
+          Offset from stext address where zImage will be copied for integrity check
+  
 config CRYPTO_ALGAPI
 	tristate
 	select CRYPTO_ALGAPI2
@@ -158,7 +164,6 @@ config CRYPTO_AUTHENC
 
 config CRYPTO_TEST
 	tristate "Testing module"
-	depends on m
 	select CRYPTO_MANAGER
 	help
 	  Quick & dirty crypto test module.

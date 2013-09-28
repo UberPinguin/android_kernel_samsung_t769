@@ -14,8 +14,10 @@ obj-$(CONFIG_LKDTM)		+= lkdtm.o
 obj-$(CONFIG_TIFM_CORE)       	+= tifm_core.o
 obj-$(CONFIG_TIFM_7XX1)       	+= tifm_7xx1.o
 obj-$(CONFIG_PHANTOM)		+= phantom.o
+obj-$(CONFIG_ANDROID_PMEM)	+= pmem.o
 obj-$(CONFIG_SGI_IOC4)		+= ioc4.o
 obj-$(CONFIG_ENCLOSURE_SERVICES) += enclosure.o
+obj-$(CONFIG_KERNEL_DEBUGGER_CORE)	+= kernel_debugger.o
 obj-$(CONFIG_KGDB_TESTS)	+= kgdbts.o
 obj-$(CONFIG_SGI_XP)		+= sgi-xp/
 obj-$(CONFIG_SGI_GRU)		+= sgi-gru/
@@ -26,8 +28,39 @@ obj-$(CONFIG_SENSORS_TSL2550)	+= tsl2550.o
 obj-$(CONFIG_EP93XX_PWM)	+= ep93xx_pwm.o
 obj-$(CONFIG_DS1682)		+= ds1682.o
 obj-$(CONFIG_TI_DAC7512)	+= ti_dac7512.o
+obj-$(CONFIG_UID_STAT)		+= uid_stat.o
 obj-$(CONFIG_C2PORT)		+= c2port/
 obj-$(CONFIG_IWMC3200TOP)      += iwmc3200top/
 obj-y				+= eeprom/
 obj-y				+= cb710/
 obj-$(CONFIG_VMWARE_BALLOON)	+= vmware_balloon.o
+obj-$(CONFIG_WL127X_RFKILL)	+= wl127x-rfkill.o
+obj-$(CONFIG_APANIC)		+= apanic.o
+ifneq ($(SEC_PROJECT_REGION_OPERATOR),US_ATT)
+obj-$(CONFIG_SENSORS_AK8975)	+= ak8975.o
+obj-$(CONFIG_SENSORS_K3DH)	+= k3dh.o
+endif
+obj-$(CONFIG_TSIF) += msm_tsif.o
+msm_tsif-objs := tsif.o
+obj-$(CONFIG_TSIF_CHRDEV) += tsif_chrdev.o
+obj-$(CONFIG_SAMSUNG_JACK) += sec_jack.o
+obj-$(CONFIG_SAMSUNG_EARJACK) += sec_earjack.o
+obj-$(CONFIG_HAPTIC_ISA1200)		+= isa1200.o
+obj-$(CONFIG_PMIC8058_PWM) += pmic8058-pwm.o
+obj-$(CONFIG_PMIC8058_VIBRATOR) += pmic8058-vibrator.o
+obj-$(CONFIG_PMIC8058_NFC) += pmic8058-nfc.o
+obj-$(CONFIG_PMIC8058_UPL) += pmic8058-upl.o
+obj-$(CONFIG_MSM_MEMORY_LOW_POWER_MODE_SUSPEND_DEEP_POWER_DOWN) \
+	+= msm_migrate_pages.o
+obj-$(CONFIG_PMIC8058_XOADC) += pmic8058-xoadc.o
+obj-$(CONFIG_PMIC8058_MISC) += pmic8058-misc.o
+obj-$(CONFIG_PMIC8058_BATTALARM) += pmic8058-batt-alarm.o
+obj-$(CONFIG_TZCOM) += tzcom.o
+obj-$(CONFIG_VIBETONZ)		+= vibetonz/
+obj-$(CONFIG_PN544)		+= pn544.o
+ifeq ($(CONFIG_USE_A2220_B),y)
+obj-$(CONFIG_VP_A2220) += a2220b.o
+else
+obj-$(CONFIG_VP_A2220) += a2220.o
+endif
+obj-$(CONFIG_SEC_MISC) += sec_misc.o sec_level.o sec_param.o

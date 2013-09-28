@@ -195,7 +195,7 @@ gen_ndis_query_resp (int configNr, u32 OID, u8 *buf, unsigned buf_len,
 
 	net = rndis_per_dev_params[configNr].dev;
 	stats = dev_get_stats(net);
-
+//	udelay(100);
 	switch (OID) {
 
 	/* general oids (table 4-1) */

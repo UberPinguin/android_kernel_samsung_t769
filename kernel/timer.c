@@ -47,6 +47,8 @@
 #include <asm/timex.h>
 #include <asm/io.h>
 
+#include <mach/sec_debug.h>
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/timer.h>
 
@@ -1040,6 +1042,7 @@ static void call_timer_fn(struct timer_list *timer, void (*fn)(unsigned long),
 
 	trace_timer_expire_entry(timer);
 	fn(data);
+	sec_debug_timer_log(3333, (int)irqs_disabled(), (void*)fn);
 	trace_timer_expire_exit(timer);
 
 	lock_map_release(&lockdep_map);
@@ -1756,3 +1759,25 @@ unsigned long msleep_interruptible(unsigned int msecs)
 }
 
 EXPORT_SYMBOL(msleep_interruptible);
+
+static int __sched do_usleep_range(unsigned long min, unsigned long max)
+{
+	ktime_t kmin;
+	unsigned long delta;
+
+	kmin = ktime_set(0, min * NSEC_PER_USEC);
+	delta = max - min;
+	return schedule_hrtimeout_range(&kmin, delta, HRTIMER_MODE_REL);
+}
+
+/**
+ * usleep_range - Drop in replacement for udelay where wakeup is flexible
+ * @min: Minimum time in usecs to sleep
+ * @max: Maximum time in usecs to sleep
+ */
+void usleep_range(unsigned long min, unsigned long max)
+{
+	__set_current_state(TASK_UNINTERRUPTIBLE);
+	do_usleep_range(min, max);
+}
+EXPORT_SYMBOL(usleep_range);

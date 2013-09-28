@@ -201,8 +201,8 @@ int sdio_claim_irq(struct sdio_func *func, sdio_irq_handler_t *handler)
 	int ret;
 	unsigned char reg;
 
-	BUG_ON(!func);
-	BUG_ON(!func->card);
+	if((!func)||(!func->card))
+		return -ENODEV;
 
 	pr_debug("SDIO: Enabling IRQ for %s...\n", sdio_func_id(func));
 
@@ -243,8 +243,8 @@ int sdio_release_irq(struct sdio_func *func)
 	int ret;
 	unsigned char reg;
 
-	BUG_ON(!func);
-	BUG_ON(!func->card);
+	if((!func)||(!func->card))
+		return -ENODEV;
 
 	pr_debug("SDIO: Disabling IRQ for %s...\n", sdio_func_id(func));
 

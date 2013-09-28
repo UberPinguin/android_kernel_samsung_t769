@@ -2368,10 +2368,17 @@ rescan_last_byte:
  * with other console code and prevention of re-entrancy is
  * ensured with console_sem.
  */
+
+// smy temp logging [
+int cs_cb_logging = 0;
+// smy temp logging ]
+ 
 static void console_callback(struct work_struct *ignored)
 {
 	acquire_console_sem();
 
+    cs_cb_logging = 0;
+    
 	if (want_console >= 0) {
 		if (want_console != fg_console &&
 		    vc_cons_allocated(want_console)) {
@@ -2381,8 +2388,23 @@ static void console_callback(struct work_struct *ignored)
 			   been allocated - a new console is not created
 			   in an interrupt routine */
 		}
+
+// smy temp logging [
+		else
+		{
+		    cs_cb_logging = 0x100;
+		    //vt_event_post(VT_EVENT_SWITCH, last_console, vc_cons[want_console].d->vc_num);
+		}
+// ] smy temp logging 		
 		want_console = -1;
 	}
+// smy temp logging [	
+    else
+    {
+        cs_cb_logging = 0x101;
+    }
+// ] smy temp logging		
+	
 	if (do_poke_blanked_console) { /* do not unblank for a LED change */
 		do_poke_blanked_console = 0;
 		poke_blanked_console();
