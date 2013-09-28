@@ -254,6 +254,24 @@ int request_resource(struct resource *root, struct resource *new)
 EXPORT_SYMBOL(request_resource);
 
 /**
+ * locate_resource - locate an already reserved I/O or memory resource
+ * @root: root resource descriptor
+ * @search: resource descriptor to be located
+ *
+ * Returns pointer to desired resource or NULL if not found.
+ */
+struct resource *locate_resource(struct resource *root, struct resource *search)
+{
+	struct resource *found;
+
+	write_lock(&resource_lock);
+	found = __request_resource(root, search);
+	write_unlock(&resource_lock);
+	return found;
+}
+EXPORT_SYMBOL(locate_resource);
+
+/**
  * release_resource - release a previously reserved resource
  * @old: resource pointer
  */
@@ -452,6 +470,8 @@ static struct resource * __insert_resource(struct resource *parent, struct resou
 			return first;
 
 		if (first == parent)
+			return first;
+		if (WARN_ON(first == new))	/* duplicated insertion */
 			return first;
 
 		if ((first->start > new->start) || (first->end < new->end))
@@ -921,7 +941,7 @@ int iomem_map_sanity_check(resource_size_t addr, unsigned long size)
 {
 	struct resource *p = &iomem_resource;
 	int err = 0;
-	loff_t l;
+	loff_t l = 0;
 
 	read_lock(&resource_lock);
 	for (p = p->child; p ; p = r_next(NULL, p, &l)) {
@@ -974,7 +994,7 @@ int iomem_is_exclusive(u64 addr)
 {
 	struct resource *p = &iomem_resource;
 	int err = 0;
-	loff_t l;
+	loff_t l = 0;
 	int size = PAGE_SIZE;
 
 	if (!strict_iomem_checks)

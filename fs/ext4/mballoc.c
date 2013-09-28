@@ -335,6 +335,11 @@
  *        object
  *
  */
+
+#if defined(CONFIG_KOR_MODEL_SHV_E160S)
+#define EXT4_BITMAP_ERROR_CONTINUE
+#endif
+
 static struct kmem_cache *ext4_pspace_cachep;
 static struct kmem_cache *ext4_ac_cachep;
 static struct kmem_cache *ext4_free_ext_cachep;
@@ -712,9 +717,17 @@ void ext4_mb_generate_buddy(struct super_block *sb,
 	grp->bb_fragments = fragments;
 
 	if (free != grp->bb_free) {
+#ifdef EXT4_BITMAP_ERROR_CONTINUE
+		clear_opt(EXT4_SB(sb)->s_mount_opt, ERRORS_PANIC);
+		set_opt(EXT4_SB(sb)->s_mount_opt, ERRORS_CONT);
+#endif
 		ext4_grp_locked_error(sb, group,  __func__,
-			"EXT4-fs: group %u: %u blocks in bitmap, %u in gd",
-			group, free, grp->bb_free);
+			"EXT4-fs: group %u: %u blocks in bitmap, %u in gd, and max : %d, fragments : %u, inodes/grp : %d",
+			group, free, grp->bb_free, max, fragments, EXT4_INODES_PER_GROUP(sb));
+#ifdef EXT4_BITMAP_ERROR_CONTINUE
+		clear_opt(EXT4_SB(sb)->s_mount_opt, ERRORS_CONT);
+		set_opt(EXT4_SB(sb)->s_mount_opt, ERRORS_PANIC);
+#endif
 		/*
 		 * If we intent to continue, we consider group descritor
 		 * corrupt and update bb_free using bitmap value

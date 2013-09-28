@@ -41,8 +41,10 @@ EXPORT_SYMBOL_GPL(sdio_claim_host);
  */
 void sdio_release_host(struct sdio_func *func)
 {
-	BUG_ON(!func);
-	BUG_ON(!func->card);
+	if(!func)
+		return -ENODEV;
+	if(!func->card)
+		return -ENODEV;
 
 	mmc_release_host(func->card->host);
 }
@@ -111,8 +113,10 @@ int sdio_disable_func(struct sdio_func *func)
 	int ret;
 	unsigned char reg;
 
-	BUG_ON(!func);
-	BUG_ON(!func->card);
+	if(!func)
+		return -ENODEV;
+	if(!func->card)
+		return -ENODEV;
 
 	pr_debug("SDIO: Disabling device %s...\n", sdio_func_id(func));
 
@@ -381,6 +385,39 @@ u8 sdio_readb(struct sdio_func *func, unsigned int addr, int *err_ret)
 	return val;
 }
 EXPORT_SYMBOL_GPL(sdio_readb);
+
+/**
+ *	sdio_readb_ext - read a single byte from a SDIO function
+ *	@func: SDIO function to access
+ *	@addr: address to read
+ *	@err_ret: optional status value from transfer
+ *	@in: value to add to argument
+ *
+ *	Reads a single byte from the address space of a given SDIO
+ *	function. If there is a problem reading the address, 0xff
+ *	is returned and @err_ret will contain the error code.
+ */
+unsigned char sdio_readb_ext(struct sdio_func *func, unsigned int addr,
+	int *err_ret, unsigned in)
+{
+	int ret;
+	unsigned char val;
+
+	BUG_ON(!func);
+
+	if (err_ret)
+		*err_ret = 0;
+
+	ret = mmc_io_rw_direct(func->card, 0, func->num, addr, (u8)in, &val);
+	if (ret) {
+		if (err_ret)
+			*err_ret = ret;
+		return 0xFF;
+	}
+
+	return val;
+}
+EXPORT_SYMBOL_GPL(sdio_readb_ext);
 
 /**
  *	sdio_writeb - write a single byte to a SDIO function
@@ -659,11 +696,13 @@ void sdio_f0_writeb(struct sdio_func *func, unsigned char b, unsigned int addr,
 
 	BUG_ON(!func);
 
+#if 0
 	if ((addr < 0xF0 || addr > 0xFF) && (!mmc_card_lenient_fn0(func->card))) {
 		if (err_ret)
 			*err_ret = -EINVAL;
 		return;
 	}
+#endif
 
 	ret = mmc_io_rw_direct(func->card, 1, 0, addr, b, NULL);
 	if (err_ret)

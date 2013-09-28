@@ -39,6 +39,18 @@
 #include <linux/syslog.h>
 
 #include <asm/uaccess.h>
+#include <mach/sec_debug.h>
+#include <asm/io.h>
+
+#if defined (CONFIG_TARGET_LOCALE_USA)
+#define LOCAL_CONFIG_PRINT_EXTRA_INFO
+#endif
+
+#ifdef LOCAL_CONFIG_PRINT_EXTRA_INFO
+#define EXTRA_BUF_SIZE (TASK_COMM_LEN+16)
+#else
+#define EXTRA_BUF_SIZE 0
+#endif
 
 /*
  * for_each_console() allows you to iterate on each console
@@ -54,6 +66,10 @@ void asmlinkage __attribute__((weak)) early_printk(const char *fmt, ...)
 }
 
 #define __LOG_BUF_LEN	(1 << CONFIG_LOG_BUF_SHIFT)
+
+#ifdef        CONFIG_DEBUG_LL
+extern void printascii(char *);
+#endif
 
 /* printk's without a loglevel use this.. */
 #define DEFAULT_MESSAGE_LOGLEVEL 4 /* KERN_WARNING */
@@ -139,6 +155,8 @@ EXPORT_SYMBOL(console_set_on_cmdline);
 /* Flag: console code may call schedule() */
 static int console_may_schedule;
 
+#define MAX_CHARS_PER_RELEASE_LOOP 128
+
 #ifdef CONFIG_PRINTK
 
 static char __log_buf[__LOG_BUF_LEN];
@@ -206,6 +224,170 @@ out:
 
 __setup("log_buf_len=", log_buf_len_setup);
 
+#if 1 //def CONFIG_SEC_LOG
+#define CONFIG_PRINTK_NOCACHE
+/*
+ * Example usage: sec_log=256K@0x45000000
+ *
+ * In above case, log_buf size is 256KB and its physical base address
+ * is 0x45000000. Actually, *(int *)(base - 8) is log_magic and *(int
+ * *)(base - 4) is log_ptr. Therefore we reserve (size + 8) bytes from
+ * (base - 8)
+ */
+#define LOG_MAGIC 0x4d474f4c /* "LOGM" */
+
+/* These variables are also protected by logbuf_lock */
+static unsigned *sec_log_ptr;
+static char *sec_log_buf;
+static unsigned sec_log_size;
+
+#ifdef CONFIG_PRINTK_NOCACHE
+static unsigned sec_log_save_size;
+static unsigned long long sec_log_save_base;
+unsigned long long sec_log_reserve_base;
+unsigned sec_log_reserve_size;
+unsigned int *sec_log_irq_en = NULL;
+#endif
+static inline void emit_sec_log_char(char c)
+{
+	if (sec_log_buf && sec_log_ptr) {
+		sec_log_buf[*sec_log_ptr & (sec_log_size - 1)] = c;
+		(*sec_log_ptr)++;
+	}
+}
+
+#ifdef CONFIG_PRINTK_NOCACHE
+void printk_remap_nocache(void)
+{
+	unsigned long long nocache_base = 0;
+	unsigned *sec_log_mag;
+	unsigned long flags;
+	unsigned start;
+
+#if 1
+	if( 0 == sec_debug_is_enabled() ) {
+		sec_getlog_supply_kloginfo(log_buf);
+		return;
+	}
+#endif
+
+	pr_err("%s: sec_log_save_size %d at sec_log_save_base 0x%x \n", 
+		__func__, sec_log_save_size, (unsigned int)sec_log_save_base);
+	pr_err("%s: sec_log_reserve_size %d at sec_log_reserve_base 0x%x \n", 
+		__func__, sec_log_reserve_size, (unsigned int)sec_log_reserve_base);
+#if 0
+	free_bootmem(sec_log_reserve_base, sec_log_reserve_size);
+#endif
+
+	nocache_base = ioremap_nocache(sec_log_save_base - 4096, sec_log_save_size + 8192);
+	nocache_base = nocache_base + 4096;
+
+	sec_log_mag = nocache_base - 8;
+	sec_log_ptr = nocache_base - 4;
+	sec_log_buf = nocache_base;
+	sec_log_size = sec_log_save_size;
+	sec_log_irq_en = nocache_base - 0xC ;
+
+#if 0
+	pr_err("%s: sec_log_save_size %d at sec_log_save_base 0x%x \n", 
+		__func__, sec_log_save_size, (unsigned int)sec_log_save_base);
+	pr_err("%s: nocache_base %x "
+	       " sec_log_mag:0x%x "
+	       "at sec_log_ptr 0x%x "
+	       "at sec_log_buf 0x%p \n", __func__, 
+	       nocache_base, *sec_log_mag, *sec_log_ptr, sec_log_buf);
+#endif
+
+	spin_lock_irqsave(&logbuf_lock, flags);
+	if (*sec_log_mag != LOG_MAGIC) {
+		*sec_log_ptr = 0;
+		*sec_log_mag = LOG_MAGIC;
+	}
+
+	start = min(con_start, log_start);
+	while (start != log_end) {
+		emit_sec_log_char(__log_buf
+				  [start++ & (__LOG_BUF_LEN - 1)]);
+	}
+
+	spin_unlock_irqrestore(&logbuf_lock, flags);
+
+	sec_getlog_supply_kloginfo(sec_log_buf);
+}
+#endif
+
+static int __init sec_log_setup(char *str)
+{
+	unsigned size = memparse(str, &str);
+
+/*
+	unsigned *sec_log_mag;
+	unsigned start;
+	unsigned long flags;
+*/
+
+	if (size && (size == roundup_pow_of_two(size)) && (*str == '@')) {
+		unsigned long long base = 0;
+
+		base = simple_strtoul(++str, &str, 0);
+#ifdef CONFIG_PRINTK_NOCACHE
+		sec_log_save_size = size;
+		sec_log_save_base = base;
+		sec_log_size = size;
+		sec_log_reserve_base = base - 8;
+		sec_log_reserve_size = size + 8;
+
+		return 1;
+#endif
+
+#if 0
+		if (reserve_bootmem(base - 8, size + 8, BOOTMEM_EXCLUSIVE)) {
+			pr_err("%s: failed reserving size %d + 8 "
+			       "at base 0x%llx - 8\n", __func__, size, base);
+			goto out;
+		}
+		sec_log_mag = phys_to_virt(base) - 8;
+		sec_log_ptr = phys_to_virt(base) - 4;
+		sec_log_buf = phys_to_virt(base);
+		sec_log_size = size;
+		pr_info("%s: *sec_log_mag:%x *sec_log_ptr:%x "
+			"sec_log_buf:%p sec_log_size:%d\n",
+			__func__, *sec_log_mag, *sec_log_ptr, sec_log_buf,
+			sec_log_size);
+
+		spin_lock_irqsave(&logbuf_lock, flags);
+
+		if (*sec_log_mag != LOG_MAGIC) {
+			*sec_log_ptr = 0;
+			*sec_log_mag = LOG_MAGIC;
+		}
+
+		start = min(con_start, log_start);
+		while (start != log_end) {
+			emit_sec_log_char(__log_buf
+					  [start++ & (__LOG_BUF_LEN - 1)]);
+		}
+		spin_unlock_irqrestore(&logbuf_lock, flags);
+#endif		
+	}
+#if 0
+	sec_getlog_supply_kloginfo(sec_log_buf);
+#endif
+
+// out:
+	return 1;
+}
+
+__setup("sec_log=", sec_log_setup);
+
+#else
+
+static inline void emit_sec_log_char(char c)
+{
+}
+
+#endif
+
 #ifdef CONFIG_BOOT_PRINTK_DELAY
 
 static unsigned int boot_delay; /* msecs delay after each printk during bootup */
@@ -259,6 +441,68 @@ static inline void boot_delay_msec(void)
 }
 #endif
 
+/*
+ * Return the number of unread characters in the log buffer.
+ */
+static int log_buf_get_len(void)
+{
+	return logged_chars;
+}
+
+/*
+ * Clears the ring-buffer
+ */
+void log_buf_clear(void)
+{
+	logged_chars = 0;
+}
+
+/*
+ * Copy a range of characters from the log buffer.
+ */
+int log_buf_copy(char *dest, int idx, int len)
+{
+	int ret, max;
+	bool took_lock = false;
+
+	if (!oops_in_progress) {
+		spin_lock_irq(&logbuf_lock);
+		took_lock = true;
+	}
+
+	max = log_buf_get_len();
+	if (idx < 0 || idx >= max) {
+		ret = -1;
+	} else {
+		if (len > max - idx)
+			len = max - idx;
+		ret = len;
+		idx += (log_end - max);
+		while (len-- > 0)
+			dest[len] = LOG_BUF(idx + len);
+	}
+
+	if (took_lock)
+		spin_unlock_irq(&logbuf_lock);
+
+	return ret;
+}
+
+/*
+ * Commands to do_syslog:
+ *
+ * 	0 -- Close the log.  Currently a NOP.
+ * 	1 -- Open the log. Currently a NOP.
+ * 	2 -- Read from the log.
+ * 	3 -- Read all messages remaining in the ring buffer.
+ * 	4 -- Read and clear all messages remaining in the ring buffer
+ * 	5 -- Clear ring buffer.
+ * 	6 -- Disable printk's to console
+ * 	7 -- Enable printk's to console
+ *	8 -- Set level of messages printed to console
+ *	9 -- Return number of unread characters in the log buffer
+ *     10 -- Return size of the log buffer
+ */
 int do_syslog(int type, char __user *buf, int len, bool from_file)
 {
 	unsigned i, j, limit, count;
@@ -534,6 +778,8 @@ static void emit_log_char(char c)
 		con_start = log_end - log_buf_len;
 	if (logged_chars < log_buf_len)
 		logged_chars++;
+
+	emit_sec_log_char(c);
 }
 
 /*
@@ -734,6 +980,9 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 	printed_len += vscnprintf(printk_buf + printed_len,
 				  sizeof(printk_buf) - printed_len, fmt, args);
 
+#ifdef	CONFIG_DEBUG_LL
+	printascii(printk_buf);
+#endif
 
 	p = printk_buf;
 
@@ -773,13 +1022,25 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 
 			if (printk_time) {
 				/* Follow the token with the time */
+#ifdef LOCAL_CONFIG_PRINT_EXTRA_INFO	
+				char tbuf[50+EXTRA_BUF_SIZE], *tp;
+#else
 				char tbuf[50], *tp;
+#endif
 				unsigned tlen;
 				unsigned long long t;
 				unsigned long nanosec_rem;
 
 				t = cpu_clock(printk_cpu);
 				nanosec_rem = do_div(t, 1000000000);
+#ifdef LOCAL_CONFIG_PRINT_EXTRA_INFO				
+				if (console_loglevel >= 9)
+					tlen = sprintf(tbuf, "[%5lu.%06lu]%c[%1d:%15s:%5d] ",
+							(unsigned long) t,
+							nanosec_rem / 1000, 
+							in_interrupt()?'I':' ', smp_processor_id(),current->comm,task_pid_nr(current));
+				else
+#endif									
 				tlen = sprintf(tbuf, "[%5lu.%06lu] ",
 						(unsigned long) t,
 						nanosec_rem / 1000);
@@ -1078,8 +1339,9 @@ void release_console_sem(void)
 		if (con_start == log_end)
 			break;			/* Nothing to print */
 		_con_start = con_start;
-		_log_end = log_end;
-		con_start = log_end;		/* Flush */
+		_log_end = (con_start + MAX_CHARS_PER_RELEASE_LOOP < log_end) ?
+			con_start + MAX_CHARS_PER_RELEASE_LOOP : log_end;
+		con_start = _log_end;		/* Flush */
 		spin_unlock(&logbuf_lock);
 		stop_critical_timings();	/* don't trace print latency */
 		call_console_drivers(_con_start, _log_end);
@@ -1545,4 +1807,8 @@ void kmsg_dump(enum kmsg_dump_reason reason)
 		dumper->dump(dumper, reason, s1, l1, s2, l2);
 	spin_unlock_irqrestore(&dump_list_lock, flags);
 }
+
+#ifdef CONFIG_PRINTK_NOCACHE
+module_init(printk_remap_nocache);
+#endif
 #endif

@@ -32,6 +32,9 @@
 #include <linux/semaphore.h>
 #include <linux/spinlock.h>
 #include <linux/ftrace.h>
+#include <linux/slab.h>
+
+#include <mach/sec_debug.h>
 
 static noinline void __down(struct semaphore *sem);
 static noinline int __down_interruptible(struct semaphore *sem);
@@ -59,6 +62,8 @@ void down(struct semaphore *sem)
 		sem->count--;
 	else
 		__down(sem);
+
+	debug_semaphore_down_log(sem);
 	spin_unlock_irqrestore(&sem->lock, flags);
 }
 EXPORT_SYMBOL(down);
@@ -82,6 +87,9 @@ int down_interruptible(struct semaphore *sem)
 		sem->count--;
 	else
 		result = __down_interruptible(sem);
+
+	if (result == 0)
+		debug_semaphore_down_log(sem);
 	spin_unlock_irqrestore(&sem->lock, flags);
 
 	return result;
@@ -108,6 +116,9 @@ int down_killable(struct semaphore *sem)
 		sem->count--;
 	else
 		result = __down_killable(sem);
+
+	if (result == 0)
+		debug_semaphore_down_log(sem);
 	spin_unlock_irqrestore(&sem->lock, flags);
 
 	return result;
@@ -136,6 +147,9 @@ int down_trylock(struct semaphore *sem)
 	count = sem->count - 1;
 	if (likely(count >= 0))
 		sem->count = count;
+
+	if (count >= 0)
+		debug_semaphore_down_log(sem);
 	spin_unlock_irqrestore(&sem->lock, flags);
 
 	return (count < 0);
@@ -162,6 +176,9 @@ int down_timeout(struct semaphore *sem, long jiffies)
 		sem->count--;
 	else
 		result = __down_timeout(sem, jiffies);
+
+	if (result == 0)
+		debug_semaphore_down_log(sem);
 	spin_unlock_irqrestore(&sem->lock, flags);
 
 	return result;
@@ -184,6 +201,8 @@ void up(struct semaphore *sem)
 		sem->count++;
 	else
 		__up(sem);
+
+	debug_semaphore_up_log(sem);
 	spin_unlock_irqrestore(&sem->lock, flags);
 }
 EXPORT_SYMBOL(up);

@@ -1071,6 +1071,11 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 				 * make sure we are atomic with respect to
 				 * other console switches..
 				 */
+// smy temp logging [				 
+				release_console_sem();
+				printk("vt_ioctl : complete_change_console");
+				acquire_console_sem();
+// smy temp logging ]				
 				complete_change_console(vc_cons[newvt].d);
 			}
 		} else {
@@ -1662,12 +1667,26 @@ static void complete_change_console(struct vc_data *vc)
 /*
  * Performs the front-end of a vt switch
  */
+
+// smy temp logging [
+int ch_cs_logging = 0;
+// smy temp logging ]
+
 void change_console(struct vc_data *new_vc)
 {
 	struct vc_data *vc;
 
+// smy temp logging [
+    ch_cs_logging = 0;
+// smy temp logging ]
+
 	if (!new_vc || new_vc->vc_num == fg_console || vt_dont_switch)
+// smy temp logging [	
+	{
+	    ch_cs_logging = 0x100;
 		return;
+	}
+// smy temp logging ]
 
 	/*
 	 * If this vt is in process mode, then we need to handshake with
@@ -1701,6 +1720,9 @@ void change_console(struct vc_data *new_vc)
 			 * return. The process needs to send us a
 			 * VT_RELDISP ioctl to complete the switch.
 			 */
+// smy temp logging [			 
+			ch_cs_logging = 0x101; 
+// smy temp logging ]			
 			return;
 		}
 
@@ -1724,14 +1746,23 @@ void change_console(struct vc_data *new_vc)
 	 * Ignore all switches in KD_GRAPHICS+VT_AUTO mode
 	 */
 	if (vc->vc_mode == KD_GRAPHICS)
+	{
+// smy temp logging [	
+		ch_cs_logging = 0x102;
+// smy temp logging ]		
 		return;
+	}
 
 	complete_change_console(new_vc);
 }
 
 /* Perform a kernel triggered VT switch for suspend/resume */
 
+#if defined(CONFIG_TARGET_LOCALE_USA) || defined(CONFIG_JPN_MODEL_SC_03D)
+static int disable_vt_switch = 1;
+#else
 static int disable_vt_switch;
+#endif
 
 int vt_move_to_console(unsigned int vt, int alloc)
 {

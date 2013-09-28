@@ -73,7 +73,9 @@ static int mmc_io_rw_direct_host(struct mmc_host *host, int write, unsigned fn,
 	struct mmc_command cmd;
 	int err;
 
-	BUG_ON(!host);
+	if(!host)
+		return -ENODEV;
+	
 	BUG_ON(fn > 7);
 
 	/* sanity check */
@@ -118,7 +120,8 @@ static int mmc_io_rw_direct_host(struct mmc_host *host, int write, unsigned fn,
 int mmc_io_rw_direct(struct mmc_card *card, int write, unsigned fn,
 	unsigned addr, u8 in, u8 *out)
 {
-	BUG_ON(!card);
+	if(!card)
+		return -ENODEV;
 	return mmc_io_rw_direct_host(card->host, write, fn, addr, in, out);
 }
 
@@ -130,7 +133,9 @@ int mmc_io_rw_extended(struct mmc_card *card, int write, unsigned fn,
 	struct mmc_data data;
 	struct scatterlist sg;
 
-	BUG_ON(!card);
+	if(!card)
+		return -ENODEV;
+	
 	BUG_ON(fn > 7);
 	BUG_ON(blocks == 1 && blksz > 512);
 	WARN_ON(blocks == 0);

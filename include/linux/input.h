@@ -595,7 +595,7 @@ struct input_absinfo {
 #define KEY_NUMERIC_9		0x209
 #define KEY_NUMERIC_STAR	0x20a
 #define KEY_NUMERIC_POUND	0x20b
-
+#define KEY_CAMERA_SNAPSHOT	0x2fe
 #define KEY_CAMERA_FOCUS	0x210
 #define KEY_WPS_BUTTON		0x211	/* WiFi Protected Setup key */
 
@@ -705,6 +705,10 @@ struct input_absinfo {
 #define ABS_MT_BLOB_ID		0x38	/* Group a set of packets as a blob */
 #define ABS_MT_TRACKING_ID	0x39	/* Unique ID of initiated contact */
 #define ABS_MT_PRESSURE		0x3a	/* Pressure on contact area */
+#ifdef CONFIG_SHAPE_TOUCH
+#define ABS_MT_COMPONENT         0x3b    /* Component value */
+#define ABS_MT_SUMSIZE         0x3c    /* Sum size value */
+#endif
 
 #define ABS_MAX			0x3f
 #define ABS_CNT			(ABS_MAX+1)

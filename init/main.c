@@ -123,6 +123,7 @@ static char *static_command_line;
 static char *execute_command;
 static char *ramdisk_execute_command;
 
+int recovery_boot;
 #ifdef CONFIG_SMP
 /* Setup configured maximum number of CPUs to activate */
 unsigned int setup_max_cpus = NR_CPUS;
@@ -266,6 +267,13 @@ static int __init loglevel(char *str)
 
 early_param("loglevel", loglevel);
 
+static int __init recovery_kernel(char *str)
+{
+	recovery_boot = 1;
+	return 0;
+}
+
+early_param("recovery", recovery_kernel);
 /*
  * Unknown boot options get handed to init, unless they look like
  * unused parameters (modprobe will find them in /proc/cmdline).
@@ -459,11 +467,21 @@ static noinline void __init_refok rest_init(void)
 	cpu_idle();
 }
 
+#ifdef CONFIG_KOR_MODEL_SHV_E120L
+int no_console = 0;
+#endif
+
 /* Check for early params. */
 static int __init do_early_param(char *param, char *val)
 {
 	struct obs_kernel_param *p;
 
+#ifdef CONFIG_KOR_MODEL_SHV_E120L
+	if ((strcmp(param, "console") == 0) && ((strcmp(val, "null") == 0) || (strcmp(val, "NULL") == 0))){
+		no_console = 1;
+	}
+#endif	
+	
 	for (p = __setup_start; p < __setup_end; p++) {
 		if ((p->early && strcmp(param, p->str) == 0) ||
 		    (strcmp(param, "console") == 0 &&
