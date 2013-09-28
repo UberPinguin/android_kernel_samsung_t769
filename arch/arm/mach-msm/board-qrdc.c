@@ -2652,7 +2652,7 @@ static void fixup_i2c_configs(void)
 #endif
 }
 
-static void __init register_i2c_devices(void)
+static void register_i2c_devices(void)
 {
 #ifdef CONFIG_I2C
 	int i;

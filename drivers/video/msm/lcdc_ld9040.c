@@ -62,9 +62,9 @@
 #include <linux/fb.h>
 #include <linux/backlight.h>
 #include <linux/miscdevice.h>
-#include "lcdc_ld9040_seq.h"
-#include "lcdc_ea8868_seq.h"
-#include "mdp4_video_enhance.h"
+#include <lcdc_ld9040_seq.h>
+#include <lcdc_ea8868_seq.h>
+#include <mdp4_video_enhance.h>
 
 #if defined (CONFIG_JPN_MODEL_SC_03D)
 #define SMART_DIMMING 1
@@ -1573,7 +1573,7 @@ static void updateIndividualElvss_Table( int vector )
 	DPRINT("IElvss : %x+%x=%x\n", IElvssOffset, vector, value);
 }
 
-static int last_elvss_set = -1;
+static int last_elvss_set = 0;
 static void ld9040_set_elvss(struct ld9040 *lcd)
 {
 	int ret = 0;

@@ -13158,7 +13158,7 @@ static struct i2c_registry msm8x60_i2c_devices[] __initdata = {
 };
 #endif /* CONFIG_I2C */
 
-static void __init fixup_i2c_configs(void)
+static void fixup_i2c_configs(void)
 {
 #ifdef CONFIG_I2C
 #if defined(CONFIG_GPIO_SX150X) || defined(CONFIG_GPIO_SX150X_MODULE)
@@ -13184,7 +13184,7 @@ static void __init fixup_i2c_configs(void)
 #endif
 }
 
-static void __init register_i2c_devices(void)
+static void register_i2c_devices(void)
 {
 #ifdef CONFIG_I2C
 	u8 mach_mask = 0;

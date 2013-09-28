@@ -543,7 +543,7 @@ static void mxt224_ta_probe(int ta_status)
 
 	if (ta_status) {
 		threshold = 70;
-		threshold_e = 40;		
+		threshold_e = 32;//40>32		
 		calcfg_dis = T48_CALCFG_TA;
 		calcfg_en = T48_CALCFG_TA | 0x20;
 		noise_threshold = 40;
@@ -3142,7 +3142,7 @@ static ssize_t set_mxt_firm_status_show(struct device *dev, struct device_attrib
 
 static ssize_t key_threshold_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%u\n", threshold);
+	return sprintf(buf, "%u\n", threshold_e);
 }
 
 static ssize_t key_threshold_store(struct device *dev, struct device_attribute *attr,

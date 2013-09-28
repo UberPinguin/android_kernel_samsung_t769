@@ -751,7 +751,7 @@ void isx012_mode_transition_CM(void)
 	int cm_status = 0;
 	short unsigned int r_data[2] = {0,0};
 
-	printk("[isx012] %s/%d\n", __func__, __LINE__);
+	CAM_DEBUG("E");
 
 	timeout_cnt = 0;
 	do {
@@ -1073,7 +1073,7 @@ static int isx012_exif_shutter_speed(void)
 	err = isx012_i2c_read_multi(0x019C, l_data,2);	//SHT_TIME_OUT_L
 	err = isx012_i2c_read_multi(0x019E, h_data,2);	//SHT_TIME_OUT_H
 	shutter_speed = (h_data[1] << 24 | h_data[0] << 16 | l_data[1] << 8 | l_data[0]);
-	printk(KERN_DEBUG "[exif_shutter][%s:%d] shutter_speed(%x/%d)\n", __func__, __LINE__, shutter_speed, shutter_speed);
+	//printk(KERN_DEBUG "[exif_shutter][%s:%d] shutter_speed(%x/%d)\n", __func__, __LINE__, shutter_speed, shutter_speed);
 
 	isx012_exif->shutterspeed = shutter_speed;
 
@@ -2030,6 +2030,19 @@ static long isx012_set_sensor_mode(int mode)
 			isx012_set_flash(isx012_ctrl->setting.flash_mode, 50);
 
 			CAM_DEBUG("ISX012_Capture_Mode start");
+			if (isx012_ctrl->status.start_af == 0) {
+				if (isx012_ctrl->status.touchaf) {
+					//touch-af window
+					ISX012_WRITE_LIST(ISX012_AF_TouchSAF_OFF);
+				} else {
+					ISX012_WRITE_LIST(ISX012_AF_SAF_OFF);
+				}
+
+				//wait 1V time (66ms)
+				mdelay(120);
+				isx012_ctrl->status.touchaf = 0;
+			}
+
 			if ((isx012_ctrl->setting.scene == SCENE_NIGHTSHOT) && (gLowLight_check)) {
 				ISX012_WRITE_LIST(ISX012_Lowlux_Night_Capture_Mode);
 			} else {
@@ -2041,12 +2054,11 @@ static long isx012_set_sensor_mode(int mode)
 			isx012_exif_shutter_speed();
 			CAM_DEBUG("ISX012_Capture_Mode end");
 
-        	if (((isx012_ctrl->setting.flash_mode == 1) && (gLowLight_check)) || (isx012_ctrl->setting.flash_mode == 2)) {
-
+	        	if (((isx012_ctrl->setting.flash_mode == 1) && (gLowLight_check)) || (isx012_ctrl->setting.flash_mode == 2)) {
 				//wait 1V time (150ms)
 				mdelay(210);
 
-	    		timeout_cnt = 0;
+		    		timeout_cnt = 0;
 				do {
 					if (timeout_cnt > 0){
 						mdelay(1);
@@ -2070,14 +2082,11 @@ static long isx012_set_sensor_mode(int mode)
 			}
 			iscapture = 1;
 			//err = isx012_snapshot_config(SENSOR_SNAPSHOT_MODE);
-
-
 			break;
 
 
 		case SENSOR_SNAPSHOT_TRANSFER:
 			CAM_DEBUG("SENSOR_SNAPSHOT_TRANSFER START");
-
 			break;
 
 		default:
@@ -2379,7 +2388,7 @@ static int isx012_set_af_stop(int af_check)
 {
 	int err = -EINVAL;
 
-	printk(KERN_DEBUG "[isx012] %s/%d isx012_ctrl->status.cancel_af_running(%d)\n", __func__, __LINE__, isx012_ctrl->status.cancel_af_running);
+	//printk(KERN_DEBUG "[isx012] %s/%d isx012_ctrl->status.cancel_af_running(%d)\n", __func__, __LINE__, isx012_ctrl->status.cancel_af_running);
 
 	isx012_ctrl->status.start_af = 0;
 
@@ -2424,7 +2433,7 @@ static int isx012_set_af_start(void)
 	int16_t ersc_data[1] = {0};
 	char modesel_fix[1] = {0}, half_move_sts[1] = {0};
 
-	printk(KERN_DEBUG "[isx012] %s/%d\n", __func__, __LINE__);
+	CAM_DEBUG("E");
 
 	isx012_ctrl->status.start_af++;
 
@@ -2526,7 +2535,7 @@ static int isx012_sensor_af_result(void)
 	int ret = 0;
 	int status = 0;
 
-	printk(KERN_DEBUG "[isx012] %s/%d\n", __func__, __LINE__);
+	CAM_DEBUG("E");
 
 	isx012_i2c_read(0x8B8B, (unsigned short *)&status);
 	if ((status & 0x1) == 0x1) {
