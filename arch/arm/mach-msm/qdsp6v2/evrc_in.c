@@ -9,11 +9,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
- * 02110-1301, USA.
- *
 */
 
 #include <linux/module.h>
@@ -27,15 +22,9 @@
 #include <linux/msm_audio_qcp.h>
 #include <asm/atomic.h>
 #include <asm/ioctls.h>
-#include <mach/qdsp6v2/apr_audio.h>
-#include <mach/qdsp6v2/q6asm.h>
+#include <sound/q6asm.h>
+#include <sound/apr_audio.h>
 #include "audio_utils.h"
-
-#if defined (CONFIG_Q1_KOR_AUDIO)
-#define pr_err printk
-#define pr_info printk
-#define pr_dbg printk
-#endif
 
 /* Buffer with meta*/
 #define PCM_BUF_SIZE		(4096 + sizeof(struct meta_in))

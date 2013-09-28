@@ -1782,7 +1782,7 @@ static struct file_operations amp_fops = {
 	.owner = THIS_MODULE,
 	.open = amp_open,
 	.release = amp_release,
-	.ioctl = amp_ioctl,
+//temp	.ioctl = amp_ioctl,
 };
 
 static struct miscdevice amp_device = {

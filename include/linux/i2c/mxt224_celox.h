@@ -174,10 +174,10 @@ typedef enum
 }diagnostic_debug_command;
 
 
-#if 0 // 20111214 add "if 0"
 //110927 gumi noise
 typedef struct
 {
+ bool median_on_flag;
  bool mferr_setting;
  uint8_t mferr_count;
  uint8_t t46_actvsyncsperx_for_mferr;
@@ -186,22 +186,6 @@ typedef struct
  uint8_t t48_thr_for_mferr;
  uint8_t t48_movfilter_for_mferr;
 }__packed t48_median_config_t;
-#else // 20111214 add "else"
-
-
-typedef struct
-{
-	bool median_on_flag;
-	bool mferr_setting;
-	uint8_t mferr_count;
-	uint8_t t46_actvsyncsperx_for_mferr;
-	uint8_t t48_mfinvlddiffthr_for_mferr;
-	uint8_t t48_mferrorthr_for_mferr;
-	uint8_t t48_thr_for_mferr;
-	uint8_t t48_movfilter_for_mferr;
-}__packed t48_median_config_t;
 
 
 #endif
-#endif
-

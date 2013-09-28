@@ -2549,7 +2549,7 @@ static const u32 s5k5bafx_common[] = {
 	0x0F12000B,
 	/* END of Initial*/
 
-	0xffff0032, /* ADD 50ms */
+	//0xffff0032, /* ADD 50ms */
 };
 
 /* Set-data based on SKT VT standard ,when using 3G network */
@@ -3056,7 +3056,7 @@ static const u32 s5k5bafx_vt_common[] =
 	0x002A04A0,
 	0x0F128000, /* lt_uLeiInit:AE start      */
 	0x002A049A,
-	0x0F1200FA, /* lt_uMinExp   0.5ms·Î º¯°æ */
+	0x0F1200FA, /* lt_uMinExp   0.5ms  */
 	
 	/* Set CIS/APS/Analog */
 	0x0028D000,
@@ -5107,7 +5107,7 @@ static const u32 s5k5bafx_vt_common[] =
 	/* Update Changed Registers */
 	0x002A03FC,
 	0x0F120001, /* REG_TC_DBG_ReInitCmd */
-    0xffff0064, /* ADD 100ms */
+	0xffff0064, /* ADD 100ms */
 	
 	0x0028D000,
 	0x002AB0CC,
@@ -5624,7 +5624,7 @@ static const u32 s5k5bafx_vt_wifi_common[] =
 	0x002A04A0,
 	0x0F128000, /* lt_uLeiInit:AE start      */
 	0x002A049A,
-	0x0F1200FA, /* lt_uMinExp   0.5ms·Î º¯°æ */
+	0x0F1200FA, /* lt_uMinExp   0.5ms  */
 	
 	
 	/* Set CIS/APS/Analog */
@@ -7670,7 +7670,7 @@ static const u32 s5k5bafx_vt_wifi_common[] =
 	/* Update Changed Registers */
 	0x002A03FC,
 	0x0F120001, /* REG_TC_DBG_ReInitCmd */
-    0xffff0064, /* ADD 100ms */
+	0xffff0064, /* ADD 100ms */
 	
 	0x0028D000,
 	0x002AB0CC,
@@ -7679,7 +7679,7 @@ static const u32 s5k5bafx_vt_wifi_common[] =
 };
 
 /*===========================================*/
-/* CAMERA_PREVIEW - ÃÔ¿µ ÈÄ ÇÁ¸®ºä º¹±Í½Ã ¼ÂÆÃ */
+/* CAMERA_PREVIEW - Ô¿   Í½  */
 /*============================================*/
 
 static const u32 s5k5bafx_preview[] =
@@ -7708,7 +7708,7 @@ static const u32 s5k5bafx_preview[] =
 };
 
 /*===========================================*/
-/*	CAMERA_SNAPSHOT  - ÃÔ¿µ 		  */
+/*	CAMERA_SNAPSHOT  - Ô¿ 		  */
 /*============================================*/
 
 static const u32 s5k5bafx_capture[] =
@@ -8240,7 +8240,7 @@ static const u32 s5k5bafx_recording_60Hz_common[] = {
 	0x002A04A0,
 	0x0F128000, /* lt_uLeiInit:AE start      */
 	0x002A049A,
-	0x0F1200FA, /* lt_uMinExp   0.5ms·Î º¯°æ */
+	0x0F1200FA, /* lt_uMinExp   0.5ms  */
 	
 	
 	/* Set CIS/APS/Analog */
@@ -10290,7 +10290,7 @@ static const u32 s5k5bafx_recording_60Hz_common[] = {
 	0x002A03FC,
 	0x0F120001, /* REG_TC_DBG_ReInitCmd */
 	
-    0xffff0064, /* ADD 100ms */
+	0xffff0064, /* ADD 100ms */
 	0x0028D000,
 	0x002AB0CC,
 	0x0F12000B, /* Non contious mode */

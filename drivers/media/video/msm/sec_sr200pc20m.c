@@ -16,9 +16,13 @@ CAMERA DRIVER FOR 2M CAM (SYS.LSI)
 #include <mach/camera.h>
 
 #include "sec_sr200pc20m.h"
+#if defined (CONFIG_TARGET_SERIES_Q1) && defined (CONFIG_CAMERA_VE)
+#include "sec_sr200pc20m_reg_q1_ve.h"	
+#else
 #include "sec_sr200pc20m_reg.h"	
+#endif
 
-#include "sec_cam_pmic.h"
+//#include "sec_cam_pmic.h"
 #include "sec_cam_dev.h"
 
 #include <linux/clk.h>
@@ -103,7 +107,7 @@ error:
 }
 
 static int32_t sr200pc20m_i2c_write_16bit(u16 packet)
-		{
+{
 	int32_t rc = -EFAULT;
 	int retry_count = 0;
 
@@ -120,7 +124,7 @@ static int32_t sr200pc20m_i2c_write_16bit(u16 packet)
 	msg.buf = buf;
 
 #if defined(CAM_I2C_DEBUG)
-	cam_err("I2C CHIP ID=0x%x, DATA 0x%x 0x%x \n", sr200pc20m_client->addr, buf[0], buf[1]);
+	cam_err("I2C CHIP ID=0x%x, DATA 0x%x 0x%x", sr200pc20m_client->addr, buf[0], buf[1]);
 #endif
 
 	do {
@@ -128,7 +132,7 @@ static int32_t sr200pc20m_i2c_write_16bit(u16 packet)
 		if (rc == 1)
 			return 0;
 		retry_count++;
-		cam_err("i2c transfer failed, retrying %x err:%d\n",
+		cam_err("i2c transfer failed, retrying %x err:%d",
 		       packet, rc);
 		mdelay(3);
 
@@ -158,8 +162,8 @@ static int sr200pc20m_i2c_write_list(const u16 *list, int size, char *name)
 		if ((temp_packet & SR200PC20M_DELAY) == SR200PC20M_DELAY)
 		{
 			m_delay = temp_packet & 0xFF;
-			cam_info("delay = %d",m_delay*10 );
-			msleep(m_delay*10);//step is 10msec
+			cam_info(" delay = %d",m_delay * 10);
+			msleep(m_delay * 10);//step is 10msec
 			continue;
 		}
 
@@ -192,7 +196,7 @@ static inline int sr200pc20m_write(struct i2c_client *client,
 	buf[1] = (u8) (packet & 0xff);	
 
 #if defined(CAM_I2C_DEBUG)
-	cam_err(" I2C 0x%x 0x%x \n", buf[0], buf[1]);
+	cam_err(" I2C 0x%x 0x%x", buf[0], buf[1]);
 #endif
 
 	msg.addr = client->addr;
@@ -205,7 +209,7 @@ static inline int sr200pc20m_write(struct i2c_client *client,
 		if (err == 1)
 			return 0;
 		retry_count++;
-		cam_err("i2c transfer failed, retrying %x err:%d\n",
+		cam_err("i2c transfer failed, retrying %x err:%d",
 		       packet, err);
 		mdelay(3);
 
@@ -492,6 +496,14 @@ static int sr200pc20m_write_regs_from_sd(char *name)
 }
 #endif
 
+#ifdef CONFIG_CAMERA_VE
+static int sr200pc20m_check_sensor(void)
+{
+	int err = 0;
+	err = sr200pc20m_i2c_write_16bit(0x0320);;
+	return err;
+}
+#endif
 static void  sr200pc20m_get_exif(void)
 {
 	u8 read_value1, read_value2, read_value3;	
@@ -713,7 +725,7 @@ static int sr200pc20m_set_flip(uint32_t flip)
 	
 	CAM_DEBUG("%d",flip);
 	
-#if defined (CONFIG_TARGET_LOCALE_KOR) || defined (CONFIG_JPN_MODEL_SC_03D)
+#if defined (CONFIG_TARGET_LOCALE_KOR) || defined (CONFIG_JPN_MODEL_SC_03D) || defined (CONFIG_TARGET_LOCALE_JPN)
 	if(sr200pc20m_ctrl->check_dataline)
 		return 0;
 
@@ -893,9 +905,9 @@ static int sr200pc20m_sensor_init_probe(const struct msm_camera_sensor_info *dat
 #ifdef CONFIG_LOAD_FILE	
 	int err = 0;
 #endif
-
+	CAM_DEBUG("E");
+#if 0	// -> msm_io_8x60.c, board-msm8x60_XXX.c
 	CAM_DEBUG("POWER ON START ");
-	
 	gpio_set_value_cansleep(CAM_VGA_EN, LOW);
 	gpio_set_value_cansleep(CAM_8M_RST, LOW);
 	gpio_set_value_cansleep(CAM_VGA_RST, LOW);
@@ -904,23 +916,24 @@ static int sr200pc20m_sensor_init_probe(const struct msm_camera_sensor_info *dat
 	rc = sub_cam_ldo_power(ON);
 	
 	//msm_camio_clk_rate_set(info->mclk);
-	msm_camio_clk_rate_set(24000000);	mdelay(30);//min 30ms
+	msm_camio_clk_rate_set(24000000);
+	mdelay(30);//min 30ms
+#endif
 
 #ifdef CONFIG_LOAD_FILE
 	err = sr200pc20m_regs_table_init();
 //	sr200pc20m_regs_table_init(); //for panic
 
 	if (err < 0 ) {
-		cam_err("sr200pc20m_regs_table_init fail!!\n");
+		cam_err("sr200pc20m_regs_table_init fail!!");
 		return err;
 	}
 #endif
-	
+#if 0	// -> msm_io_8x60.c, board-msm8x60_XXX.c
 	gpio_set_value_cansleep(CAM_VGA_RST, HIGH);
 	mdelay(2);//min 50us
-	
 	CAM_DEBUG("POWER ON END ");
-
+#endif
 	return rc;
 }
 
@@ -980,7 +993,24 @@ int sr200pc20m_sensor_open_init(const struct msm_camera_sensor_info *data)
 	sr200pc20m_ctrl->blur = BLUR_LEVEL_0;
 	sr200pc20m_ctrl->exif_exptime = 0; 
 	sr200pc20m_ctrl->exif_iso = 0;
+#ifdef CONFIG_CAMERA_VE
+	rc = sr200pc20m_check_sensor();
+	if (rc < 0) {
+		cam_err(" Front sensor is not sr200pc20m [rc : %d]", rc );
 
+#if 0	// -> msm_io_8x60.c, board-msm8x60_XXX.c
+		gpio_set_value_cansleep(CAM_VGA_RST, LOW);
+		mdelay(1);
+
+		sub_cam_ldo_power(OFF);	// have to turn off MCLK before PMIC
+#endif
+#ifdef CONFIG_LOAD_FILE
+		sr200pc20m_regs_table_exit();
+#endif
+
+		goto init_fail;
+	}
+#endif 
 	CAM_DEBUG("X");
 init_done:
 	return rc;
@@ -1019,59 +1049,59 @@ int sr200pc20m_sensor_ext_config(void __user *argp)
 		&& (cfg_data.cmd != EXT_CFG_SET_VT_MODE)	
 		&& (cfg_data.cmd != EXT_CFG_SET_MOVIE_MODE)	
 		&& (!sr200pc20m_ctrl->initialized)){
-		cam_err("camera isn't initialized\n");
+		cam_err("camera isn't initialized");
 		return 0;
 	}
 	
 	switch(cfg_data.cmd) {
-	case EXT_CFG_SET_BRIGHTNESS:
-		rc = sr200pc20m_set_brightness(cfg_data.value_1);
-		break;
+		case EXT_CFG_SET_BRIGHTNESS:
+			rc = sr200pc20m_set_brightness(cfg_data.value_1);
+			break;
 
-	case EXT_CFG_SET_BLUR:
-		rc = sr200pc20m_set_blur(cfg_data.value_1);
-		break;		
+		case EXT_CFG_SET_BLUR:
+			rc = sr200pc20m_set_blur(cfg_data.value_1);
+			break;		
 
-	case EXT_CFG_SET_DTP:
-		sr200pc20m_ctrl->check_dataline = cfg_data.value_1;
-		
-		if (sr200pc20m_ctrl->check_dataline == 0)
-			rc = sr200pc20m_check_dataline(0);
-		break;
+		case EXT_CFG_SET_DTP:
+			sr200pc20m_ctrl->check_dataline = cfg_data.value_1;
+			
+			if (sr200pc20m_ctrl->check_dataline == 0)
+				rc = sr200pc20m_check_dataline(0);
+			break;
 
-	case EXT_CFG_SET_FPS:
-		//rc = sr200pc20m_set_fps(cfg_data.value_1,cfg_data.value_2);
-		rc = sr200pc20m_set_frame_rate(cfg_data.value_1);
-		break;
+		case EXT_CFG_SET_FPS:
+			//rc = sr200pc20m_set_fps(cfg_data.value_1,cfg_data.value_2);
+			rc = sr200pc20m_set_frame_rate(cfg_data.value_1);
+			break;
 
 #if 0
-	case EXT_CFG_SET_FRONT_CAMERA_MODE:
-		CAM_DEBUG("VTCall mode : %d",cfg_data.value_1);
-		sr200pc20m_ctrl->vtcall_mode = cfg_data.value_1;
-		break;
+		case EXT_CFG_SET_FRONT_CAMERA_MODE:
+			CAM_DEBUG("VTCall mode : %d",cfg_data.value_1);
+			sr200pc20m_ctrl->vtcall_mode = cfg_data.value_1;
+			break;
 #endif
 
-	case EXT_CFG_SET_VT_MODE:
-		cam_info("VTCall mode : %d",cfg_data.value_1);
-		sr200pc20m_ctrl->vtcall_mode = cfg_data.value_1;
-		break;
-		
-	case EXT_CFG_SET_MOVIE_MODE:
-		cam_info("MOVIE mode : %d",cfg_data.value_1);
-		rc = sr200pc20m_set_movie_mode(cfg_data.value_1);
-		break;
+		case EXT_CFG_SET_VT_MODE:
+			cam_info("VTCall mode : %d",cfg_data.value_1);
+			sr200pc20m_ctrl->vtcall_mode = cfg_data.value_1;
+			break;
+			
+		case EXT_CFG_SET_MOVIE_MODE:
+			cam_info("MOVIE mode : %d",cfg_data.value_1);
+			rc = sr200pc20m_set_movie_mode(cfg_data.value_1);
+			break;
 
-	case EXT_CFG_SET_FLIP:
-		rc = sr200pc20m_set_flip(cfg_data.value_1);
-		break;
+		case EXT_CFG_SET_FLIP:
+			rc = sr200pc20m_set_flip(cfg_data.value_1);
+			break;
 
 
-	case EXT_CFG_GET_EXIF:
-		rc = sr200pc20m_get_exif_data(&cfg_data.value_1, &cfg_data.value_2);	
-		break;
+		case EXT_CFG_GET_EXIF:
+			rc = sr200pc20m_get_exif_data(&cfg_data.value_1, &cfg_data.value_2);	
+			break;
 
-	default:
-		break;
+		default:
+			break;
 	}
 
 	if (copy_to_user((void *)argp, (const void *)&cfg_data, sizeof(cfg_data))){
@@ -1107,17 +1137,22 @@ int sr200pc20m_sensor_config(void __user *argp)
 
 int sr200pc20m_sensor_release(void)
 {
+	CAM_DEBUG("E");
+	
+#if 0	// -> msm_io_8x60.c, board-msm8x60_XXX.c
 	CAM_DEBUG("POWER OFF START");
 
 	gpio_set_value_cansleep(CAM_VGA_RST, LOW);
 	mdelay(1);
 
 	sub_cam_ldo_power(OFF);	// have to turn off MCLK before PMIC
-
+#endif
 #ifdef CONFIG_LOAD_FILE
 	sr200pc20m_regs_table_exit();
 #endif
+#if 0	// -> msm_io_8x60.c, board-msm8x60_XXX.c
 	CAM_DEBUG("POWER OFF END");
+#endif
 
 	if (sr200pc20m_ctrl != NULL){
 		kfree(sr200pc20m_ctrl);

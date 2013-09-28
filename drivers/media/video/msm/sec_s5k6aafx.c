@@ -1,4 +1,4 @@
-/*/*
+/*
   SEC S5K6AAFX
  */
 /***************************************************************
@@ -821,7 +821,7 @@ static int s5k6aafx_set_flip(uint32_t flip)
 
 	CAM_DEBUG("%d",flip);
 
-#if defined (CONFIG_TARGET_LOCALE_KOR) || defined (CONFIG_JPN_MODEL_SC_03D)
+#if defined (CONFIG_TARGET_LOCALE_KOR) || defined (CONFIG_JPN_MODEL_SC_03D) || defined (CONFIG_TARGET_LOCALE_JPN)
 	if(s5k6aafx_ctrl->check_dataline)
 		return 0;
 
@@ -1038,20 +1038,17 @@ static int s5k6aafx_sensor_init_probe(const struct msm_camera_sensor_info *data)
 	udelay(50);
 	
 
-	printk("3. CAM_VGA_RST HIGH ");
+	printk("3. CAM_VGA_RST HIGH\n");
 	gpio_set_value_cansleep(CAM_FRONT_RST, 1);// VT RST
 	mdelay(1);
 
-	printk("4. CAM_5M_RST LOW ");
+	printk("4. CAM_5M_RST LOW\n ");
 	gpio_set_value_cansleep(CAM_5M_RST, 0);// 5M RST
 	mdelay(6);
-
-
 
 #ifdef CONFIG_LOAD_FILE
 	s5k6aafx_regs_table_init();
 #endif
-
 
 	CAM_DEBUG("POWER ON END ");
 
@@ -1390,8 +1387,6 @@ int s5k6aafx_sensor_probe(const struct msm_camera_sensor_info *info,
 {
 	int rc = 0;
 
-	CAM_DEBUG("E");
-
 	rc = s5k6aafx_i2c_init();
 
 	if (rc < 0)
@@ -1405,7 +1400,7 @@ int s5k6aafx_sensor_probe(const struct msm_camera_sensor_info *info,
 	s->s_mount_angle = 270;
 
 probe_done:
-	cam_err("rc = %d", rc);
+	cam_err("Sensor probe done(%d)", rc);
 	return rc;
 
 }

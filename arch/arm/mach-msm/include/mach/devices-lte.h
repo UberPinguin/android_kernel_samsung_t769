@@ -44,21 +44,35 @@
 #define MSM_MAG_I2C_BUS_ID		12
 #define MSM_TKEY_I2C_BUS_ID		13
 
-#if defined(CONFIG_PN544)
+#if defined(CONFIG_PN544_NFC)
 #define MSM_GSBI10_QUP_I2C_BUS_ID		14
 #endif
 #if defined(CONFIG_BATTERY_MAX17040) || defined(CONFIG_CHARGER_SMB328A)
 #define MSM_FG_SMB_I2C_BUS_ID		15
 #endif
-
+#if defined(CONFIG_SAMSUNG_8X60_TABLET) && defined(CONFIG_BATTERY_MAX17042)
+#define MSM_FG_I2C_BUS_ID		15
+#endif
 #ifdef CONFIG_VP_A2220
 #define MSM_A2220_I2C_BUS_ID		16	
 #endif
+
+#if defined(CONFIG_SAMSUNG_8X60_TABLET) && defined (CONFIG_CMC623_P5LTE)
+#define MSM_CMC623_I2C_BUS_ID   17
+#endif
+#if defined(CONFIG_SAMSUNG_8X60_TABLET) && defined (CONFIG_CMC624_P8LTE)
+#define MSM_CMC624_I2C_BUS_ID   17
+#endif
+
 #define MSM_MOTOR_I2C_BUS_ID		17
 
 #if defined (CONFIG_EPEN_WACOM_G5SP)
 #define MSM_GSBI11_QUP_I2C_BUS_ID	18
 #endif 
+
+#if defined(CONFIG_SAMSUNG_8X60_TABLET) && defined (CONFIG_STMPE811_ADC)
+#define MSM_STMPE811_I2C_BUS_ID		19
+#endif
 
 #ifdef CONFIG_SPI_QUP
 extern struct platform_device msm_gsbi1_qup_spi_device;
@@ -98,19 +112,10 @@ extern struct platform_device msm_device_rng;
 	/* USE DEVGURU HOST DRIVER */
 	/* 0x6860 : MTP(0) + MS Composite (UMS) */
 	/* 0x685E : UMS(0) + MS Composite (ADB) */
-
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_MTP
-#define SAMSUNG_KIES_PRODUCT_ID	0x6860	/* MTP(0) + MS Composite */
-#define SAMSUNG_DEBUG_PRODUCT_ID	0x6860	/* MTP(0) + MS Composite (ADB) */
-#define SAMSUNG_MDM_PRODUCT_ID		0x685D	/* ACM(MDM) + ADB + RMNET */
-#define SAMSUNG_UMS_PRODUCT_ID		0x685B  /* UMS Only */
-#else
-#define SAMSUNG_KIES_PRODUCT_ID	0x685E	/* UMS(0) + MS Composite */
+#define SAMSUNG_KIES_PRODUCT_ID		0x685E	/* UMS(0) + MS Composite */
 #define SAMSUNG_DEBUG_PRODUCT_ID	0x685E	/* UMS(0) + MS Composite (ADB) */
 #define SAMSUNG_UMS_PRODUCT_ID		0x685B  /* UMS Only */
 #define SAMSUNG_MTP_PRODUCT_ID		0x685C  /* MTP Only */
-#endif
-
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_RNDIS_WITH_MS_COMPOSITE
 #define SAMSUNG_RNDIS_PRODUCT_ID	0x6861  /* RNDIS(0,1) + UMS (2) + MS Composite */
 #else
@@ -124,29 +129,15 @@ extern struct platform_device msm_device_rng;
 #define SAMSUNG_MTP_PRODUCT_ID		0x68A9
 #define SAMSUNG_RNDIS_PRODUCT_ID	0x6881
 #endif
-
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_MTP
-#define ANDROID_KIES_CONFIG_STRING	"MTP + ACM (SAMSUNG KIES mode)"
-#define ANDROID_DEBUG_CONFIG_STRING	"MTP + ACM + ADB (Debugging mode)"
-#define ANDROID_MDM_CONFIG_STRING	"ACM + ADB + RMNET (MDM Test mode)"
-#define ANDROID_UMS_CONFIG_STRING	 "UMS Only (Not debugging mode)"
-#define ANDROID_MTP_CONFIG_STRING	 "MTP Only (Not debugging mode)"
-#else
 #define ANDROID_DEBUG_CONFIG_STRING	 "ACM + UMS + ADB (Debugging mode)"
 #define ANDROID_KIES_CONFIG_STRING	 "ACM + UMS (SAMSUNG KIES mode)"
 #define ANDROID_UMS_CONFIG_STRING	 "UMS Only (Not debugging mode)"
 #define ANDROID_MTP_CONFIG_STRING	 "MTP Only (Not debugging mode)"
-#endif
-
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_RNDIS_WITH_MS_COMPOSITE
 #define ANDROID_RNDIS_CONFIG_STRING	 "RNDIS + UMS (Not debugging mode)"
 #else
 #define ANDROID_RNDIS_CONFIG_STRING	 "RNDIS Only (Not debugging mode)"
 #endif
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_RNDIS_FOR_ATT_TEST_COMPOSITE
-#define ANDROID_RNDIS_TEST_CONFIG_STRING	 "RNDIS + ACM (Not debugging mode)"
-#endif
-
 	/* Refered from S1, P1 */
 #define USBSTATUS_UMS				0x0
 #define USBSTATUS_SAMSUNG_KIES 		0x1
@@ -155,15 +146,10 @@ extern struct platform_device msm_device_rng;
 #define USBSTATUS_VTP				0x8
 #define USBSTATUS_ADB				0x10
 #define USBSTATUS_DM				0x20
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_RNDIS_FOR_ATT_TEST_COMPOSITE
-#define USBSTATUS_VTP_TEST			0x40
-#else
 #define USBSTATUS_ACM				0x40
-#endif
 #define USBSTATUS_SAMSUNG_KIES_REAL		0x80
-#define USBSTATUS_RMNET                             0xA0
-
 #endif /* CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE */
+
 
 void __init msm8x60_init_irq(void);
 #ifdef CONFIG_MSM_KGSL_2D

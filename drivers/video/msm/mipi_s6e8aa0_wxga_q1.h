@@ -36,7 +36,7 @@ int mipi_s6e8aa0_wxga_q1_device_register(struct msm_panel_info *pinfo,
 
 char* get_s6e8aa0_id_buffer( void );
 
-#if defined(CONFIG_KOR_MODEL_SHV_E160S)
+#if defined(CONFIG_KOR_MODEL_SHV_E160S) || defined(CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L)  || defined(CONFIG_JPN_MODEL_SC_05D) 
 #define S6E8AA0_WXGA_Q1_58HZ_500MBPS
 #undef S6E8AA0_WXGA_Q1_60HZ_500MBPS
 #undef S6E8AA0_WXGA_Q1_57p2HZ_480MBPS
@@ -44,6 +44,7 @@ char* get_s6e8aa0_id_buffer( void );
 #undef S6E8AA0_WXGA_Q1_58HZ_500MBPS
 #undef S6E8AA0_WXGA_Q1_60HZ_500MBPS
 #define S6E8AA0_WXGA_Q1_57p2HZ_480MBPS
+#define MAPPING_TBL_AUTO_BRIGHTNESS 
 #endif
 
 #endif  /* MIPI_S6E8AA0_WXGA_Q1_H */

@@ -300,7 +300,7 @@ static ssize_t proximity_state_show(struct device *dev,
 
     struct input_dev *input_data = to_input_dev(dev);
 	struct gp2a_data *data = input_get_drvdata(input_data);
-	int value;
+	// int value;
 
 	int D2_data;
     unsigned char get_D2_data[2]={0,};//test
@@ -481,7 +481,7 @@ int opt_i2c_read(u8 reg, unsigned char *rbuf, int len )
 {
 
 	int ret=-1;
-	int i;
+	// int i;
 	struct i2c_msg msg;
 	uint8_t start_reg;
 
@@ -568,6 +568,10 @@ static int proximity_input_init(struct gp2a_data *data)
 	input_set_capability(dev, EV_ABS, ABS_STATUS); /* status */
 	input_set_capability(dev, EV_ABS, ABS_WAKE); /* wake */
 	input_set_capability(dev, EV_ABS, ABS_CONTROL_REPORT); /* enabled/delay */
+	input_set_abs_params(dev, ABS_DISTANCE, 0, 128, 0, 0);
+	input_set_abs_params(dev, ABS_STATUS, 0, 1, 0, 0);
+	input_set_abs_params(dev, ABS_WAKE, 0, 163840, 0, 0);
+	input_set_abs_params(dev, ABS_CONTROL_REPORT, 0, 98432, 0, 0);
 
 	dev->name = "proximity_sensor";
 	input_set_drvdata(dev, data);
@@ -587,7 +591,7 @@ static int gp2a_opt_probe( struct platform_device* pdev )
     struct gp2a_data *gp2a;
 	struct opt_gp2a_platform_data *pdata = pdev->dev.platform_data;
     u8 value;
-	int ret;
+	// int ret;
     int err = 0;
 	int wakeup = 0;
 
@@ -786,7 +790,7 @@ static int gp2a_opt_suspend( struct platform_device* pdev, pm_message_t state )
 
 	   gprintk("The timer is cancled.\n");
 	}
-#ifdef CONFIG_KOR_MODEL_SHV_E120L ||defined(CONFIG_KOR_MODEL_SHV_E120S) ||defined(CONFIG_KOR_MODEL_SHV_E120K)
+#if defined(CONFIG_KOR_MODEL_SHV_E120L) ||defined(CONFIG_KOR_MODEL_SHV_E120S) ||defined(CONFIG_KOR_MODEL_SHV_E120K)
 	else {
 		gpio_direction_input(ALS_SDA);
 		gpio_direction_input(ALS_SCL);
@@ -807,7 +811,7 @@ static int gp2a_opt_resume( struct platform_device* pdev )
 	struct gp2a_data *gp2a = platform_get_drvdata(pdev);
 
 	gprintk("\n");
-#ifdef CONFIG_KOR_MODEL_SHV_E120L ||defined(CONFIG_KOR_MODEL_SHV_E120S) ||defined(CONFIG_KOR_MODEL_SHV_E120K)
+#if defined(CONFIG_KOR_MODEL_SHV_E120L) ||defined(CONFIG_KOR_MODEL_SHV_E120S) ||defined(CONFIG_KOR_MODEL_SHV_E120K)
 	if(!gp2a->enabled) { //calling
 		ret = gpio_request(ALS_SDA, "gp2a_sda");
 		if(ret)
@@ -837,7 +841,7 @@ static int proximity_onoff(u8 onoff)
 {
 	u8 value;
     int i;
-	unsigned char get_data[1];//test
+	// unsigned char get_data[1];//test
 	int err = 0;
 
 	printk("%s : proximity turn on/off = %d\n", __func__, onoff);
@@ -971,4 +975,3 @@ module_exit( gp2a_opt_exit );
 MODULE_AUTHOR("SAMSUNG");
 MODULE_DESCRIPTION("Optical Sensor driver for GP2AP020A00F");
 MODULE_LICENSE("GPL");
-

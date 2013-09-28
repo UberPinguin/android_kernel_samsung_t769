@@ -21,20 +21,14 @@ ver 0.1 : only preview (base on universal)
 #include <linux/kernel.h>
 
 #include "sec_m5mo.h"
-#include "sec_cam_pmic.h"
 #include "sec_cam_dev.h"
 
 #include <asm/gpio.h> 
 
-#if 1//Mclk_timing for M4Mo spec.
-#include <linux/clk.h>
-#include <linux/io.h>
 #include <mach/board.h>
-#endif
 #include <mach/msm_iomap.h>
 
 #include <linux/interrupt.h>
-
 
 //#define FORCE_FIRMWARE_UPDATE
 
@@ -70,7 +64,8 @@ struct m5mo_work_t {
 static struct  m5mo_work_t *m5mo_sensorw;
 static struct  i2c_client *m5mo_client;
 static unsigned int config_csi;
-#if defined (CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L) || defined (CONFIG_USA_MODEL_SGH_I717)
+
+#if defined (CAMERA_WXGA_PREVIEW)
 static const struct m5mo_frmsizeenum m5mo_preview_sizes[] = {
 	{ M5MO_PREVIEW_QCIF,	176,	144,	0x05 },	/* 176 x 144 */
 	{ M5MO_PREVIEW_QCIF2,	528,	432,	0x2C },	/* 176 x 144 */
@@ -106,6 +101,7 @@ static const struct m5mo_frmsizeenum m5mo_picture_sizes[] = {
 	{ M5MO_CAPTURE_HD4MP,	2560,	1440,	0x1C }, // 16:9
 	{ M5MO_CAPTURE_3MP,	2048,	1536,	0x1B }, // 4:3
 	{ M5MO_CAPTURE_W2MP,	2048,	1232,	0x2C }, // 5:3
+	{ M5MO_CAPTURE_1MP,	1280,	960,	0x14 }, // 4:3
 	{ M5MO_CAPTURE_HD1MP,	1280,	720,	0x10 }, // 16:9
 	{ M5MO_CAPTURE_WVGA,	800,	480,	0x0A }, //5:3
 	{ M5MO_CAPTURE_VGA,	640,	480,	0x09 }, //4:3
@@ -129,12 +125,9 @@ static struct m5mo_exif_data * m5mo_exif;
 
 #ifdef CONFIG_FB_MSM_MDP_ADDITIONAL_BUS_SCALING
 int require_exceptional_MDP_clock=0;
-#endif 
-
-extern unsigned int get_hw_rev(void);
+#endif
 
 static DECLARE_WAIT_QUEUE_HEAD(m5mo_wait_queue);
-DECLARE_MUTEX(m5mo_sem);
 
 #if 0
 
@@ -371,7 +364,7 @@ static irqreturn_t m5mo_isp_isr(int irq, void *dev_id)
 
 static u32 m5mo_wait_interrupt(unsigned int timeout)
 {
-	cam_info("m5mo_wait_interrupt :E");
+	cam_info(" m5mo_wait_interrupt :E");
 
 	if (wait_event_interruptible_timeout(m5mo_ctrl->isp.wait, m5mo_ctrl->isp.issued == 1,
 		msecs_to_jiffies(timeout)) == 0) {
@@ -383,7 +376,7 @@ static u32 m5mo_wait_interrupt(unsigned int timeout)
 
 	m5mo_readb(M5MO_CATEGORY_SYS, M5MO_SYS_INT_FACTOR, &m5mo_ctrl->isp.int_factor);
 
-	cam_info("m5mo_wait_interrupt:	X: 0x%x", m5mo_ctrl->isp.int_factor);
+	cam_info(" m5mo_wait_interrupt:	X: 0x%x", m5mo_ctrl->isp.int_factor);
 	return m5mo_ctrl->isp.int_factor;
 }
 
@@ -544,13 +537,13 @@ static long m5mo_set_zoom(	int8_t level)
 	int zoom[] = { 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15, 17, 18, 19,
 		20, 21, 22, 24, 25, 26, 28, 29, 30, 31, 32, 34, 35, 36, 38, 39};
 
-	CAM_DEBUG("level:%d (reg value : %d)",level,zoom[level]);
-
 	if(level < 0 || level > 30 )	{
 		cam_err("Invalid Zoom Level !!!");
 		level = 0;
 	}
 	
+	CAM_DEBUG("level:%d (reg value : %d)",level,zoom[level]);
+
 	/* Start Digital Zoom */
 	err = m5mo_writeb(M5MO_CATEGORY_MON, M5MO_MON_ZOOM, zoom[level]); 
 	CHECK_ERR(err);
@@ -636,7 +629,9 @@ static int m5mo_set_preview_size(int width, int height)
 	if (m5mo_ctrl->settings.zoom) {
 		m5mo_set_zoom(m5mo_ctrl->settings.zoom);
 	}
-	
+
+// param_mode -> preview size -> [LP11 state] ( mipi mode )-> monitor_mode
+#if 0 // for LP11 state
 	/* change to monitor mode */
 	m5mo_set_mode(M5MO_MONITOR_MODE);
 
@@ -645,6 +640,7 @@ static int m5mo_set_preview_size(int width, int height)
 		cam_err("M5MO_INT_MODE isn't issued, %#x",int_factor);
 		return -ETIMEDOUT;
 	}
+#endif
 	return 0;
 }
 
@@ -936,6 +932,7 @@ static int m5mo_set_sharpness(int val)
 }
 
 
+#if 0
 static int m5mo_set_contrast(int8_t val)
 {
 	int err = 0;
@@ -953,6 +950,7 @@ static int m5mo_set_contrast(int8_t val)
 	m5mo_ctrl->settings.contrast = val;
 	return 0;
 }
+#endif
 
 static int m5mo_set_iso(int8_t val)
 {
@@ -1024,58 +1022,6 @@ static int m5mo_set_flash(int value)
 	return 0;
 }
 
-#define TORCH_EN		62
-#define TORCH_SET		63
-#define CAM_SW_EN		130
-	
-struct class *camera_class;
-struct device *camera_device;
-
-static ssize_t cameraflash_file_cmd_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	//pr_err("<Torch> %s 62 : %d 63 : %d\n", __func__, gpio_get_value(TORCH_EN), gpio_get_value(TORCH_SET));
-	return 0;
-}
-
-static ssize_t cameraflash_file_cmd_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	int value = 0;
-	
-	sscanf(buf, "%d", &value);
-	
-	pr_err("[Torch] %s : Value : %d\n", __func__, value);
-
-	if (value == 0) {
-#if defined (CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I757M)
- 		if (get_hw_rev() >= 0x06)
-			gpio_set_value_cansleep(CAM_SW_EN, 0);
-#endif
-		gpio_set_value_cansleep(TORCH_EN, 0);
-		gpio_set_value_cansleep(TORCH_SET, 0);
-		mdelay(1); 
-	} else {
-#if defined (CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I757M)
- 		if (get_hw_rev() >= 0x06) {
-			gpio_set_value_cansleep(CAM_SW_EN, 1);
-			gpio_set_value_cansleep(TORCH_EN, 1);
-			gpio_set_value_cansleep(TORCH_SET, 1);
- 		} else { // Temp
-			gpio_set_value_cansleep(TORCH_EN, 0);
-			gpio_set_value_cansleep(TORCH_SET, 1);
-		}
-#else
-		gpio_set_value_cansleep(TORCH_EN, 1);
-		gpio_set_value_cansleep(TORCH_SET, 1);
-#endif
-		mdelay(1); 
-	}
-
-	return size;
-}
-
-static DEVICE_ATTR(rear_flash, 0660, cameraflash_file_cmd_show, cameraflash_file_cmd_store);	// ranjan
 
 static int m5mo_set_effect_color(int8_t effect)
 {
@@ -1118,6 +1064,10 @@ static int m5mo_set_effect_color(int8_t effect)
 	case CAMERA_EFFECT_SEPIA:
 		cb = 0xD8;
 		cr = 0x18;
+		break;
+	case CAMERA_EFFECT_AQUA:
+		cb = 0x40;
+		cr = 0x00;
 		break;
 	case CAMERA_EFFECT_MONO:
 		cb = 0x00;
@@ -1163,9 +1113,6 @@ static int m5mo_set_effect_gamma(int8_t val)
 	case CAMERA_EFFECT_NEGATIVE:
 		effect = 0x01;
 		break;
-	case CAMERA_EFFECT_AQUA:
-		effect = 0x08;
-		break;
 	default:
 		cam_err("Invalid");
 		break;
@@ -1205,11 +1152,11 @@ retry:
 	case CAMERA_EFFECT_OFF:
 	case CAMERA_EFFECT_SEPIA:
 	case CAMERA_EFFECT_MONO:
+	case CAMERA_EFFECT_AQUA:
 		err = m5mo_set_effect_color(effect);
 		CHECK_ERR(err);
 		break;
 	case CAMERA_EFFECT_NEGATIVE:
-	case CAMERA_EFFECT_AQUA:
 		err = m5mo_set_effect_gamma(effect);
 		CHECK_ERR(err);
 		break;
@@ -1223,6 +1170,7 @@ retry:
 	return err;
 }
 
+#ifdef FEATURE_CAMERA_HDR
 static int m5mo_set_hdr(int val)
 {
 	u32 int_factor;
@@ -1248,7 +1196,7 @@ static int m5mo_set_hdr(int val)
 	CAM_DEBUG("X");
 	return 0;
 }
-
+#endif
 
 static long m5mo_set_antishake_mode(u32 onoff)
 {
@@ -1322,64 +1270,6 @@ static int m5mo_get_af_status(int* status)
 	return 0;
 }
 
-#if 0
-static int m5mo_set_af_status(int status)
-{
-	unsigned int value;
-#ifdef	CHECK_AFSTATUS_IN_KERNEL
-	int wait_count = 30;
-#endif
-	static int af_stopped;
-	
-	CAM_DEBUG("%d",status);
-	if (status) {	// start
-		CAM_DEBUG(" AF start !");
-		af_stopped = 0;
-
-		/* AE/AWB Lock */
-		m5mo_set_lock(1);
-		
-		/* AF interrupt enable */
-		//m5mo_writeb(0x00, 0x11, M5MO_INT_AF); 
-		/* AF operation start */
-		m5mo_writeb(M5MO_CATEGORY_LENS, M5MO_LENS_AF_START, 0x01); 
-		//msleep(100);
-		//wait_interrupt_mode(M5MO_INT_AF);
-		
-#ifdef	CHECK_AFSTATUS_IN_KERNEL		
-		do {
-			msleep(50);
-			m5mo_readb(0x00, 0x10, &value);
-			CAM_DEBUG(" (%d) Wait interrupt mode : %d (0x10 regs value = 0x%x)",wait_count,M5MO_INT_AF,value);
-		}while((--wait_count) > 0 && !(value & M5MO_INT_AF) && !af_stopped);
-
-		m5mo_readb(0x0A, 0x04, &value);
-		cam_info("AF status : %s",(value == 1)?"Free":"Busy");
-		
-		m5mo_readb(M5MO_CATEGORY_LENS, M5MO_LENS_AF_STATUS, &value);
-		cam_info("AF result : %s",(value == 2)?"Success":((value==1)?"None":"Fail"));
-
-		/* AE/AWB unlock when AF result is Failed */
-		if (value == 0) {
-			m5mo_set_lock(0);
-		}
-#endif
-	}
-	else {// stop
-		CAM_DEBUG(" AF stop !");
-		af_stopped = 1;
-		/* Stop AF */
-		m5mo_writeb(M5MO_CATEGORY_LENS, M5MO_LENS_AF_START, 0x00); 
-		/* AE/AWB Unlock */
-		m5mo_set_lock(0);
-//		msleep(5);
-	}
-
-	m5mo_ctrl->focus.status = status;
-	return 0;
-}
-
-#endif
 
 static int m5mo_set_af_mode_select(int focus_mode) {
 /*
@@ -1506,7 +1396,7 @@ static int m5mo_set_af(int val)
 
 static int m5mo_set_touchaf_pos(u32 screen_x, u32 screen_y)
 {
-	cam_info(" screenX : %d, screenY : %d",screen_x,screen_y);
+	//cam_info(" screenX : %d, screenY : %d",screen_x,screen_y);
 	m5mo_ctrl->focus.pos_x = screen_x;
 	m5mo_ctrl->focus.pos_y = screen_y;
 	
@@ -1820,7 +1710,7 @@ int get_camera_fw_id(int * fw_version)
 static int m5mo_check_version(void)
 {
 	int i, val;
-	unsigned int fw_ver = 0, param_ver = 0,  awb_ver = 0 , cal_ver = 0;
+	unsigned int fw_ver = 0, param_ver = 0,  awb_ver = 0;
 
 	for (i = 0; i < 6; i++) {
 		m5mo_readb(M5MO_CATEGORY_SYS, M5MO_SYS_USER_VER, &val);
@@ -1828,29 +1718,16 @@ static int m5mo_check_version(void)
 	}
 	m5mo_exif->unique_id[i] = '\0';
 	
-	
-	if (m5mo_exif->unique_id[0] == 'O' && m5mo_exif->unique_id[1] == 'L'){
-		m5mo_writeb(M5MO_CATEGORY_LENS, M5MO_LENS_AF_CAL_DATA_READ, 0x04);
-		m5mo_writeb(M5MO_CATEGORY_LENS, M5MO_LENS_AF_CAL_DATA_READ, 0x05);
-		mdelay(5);
-	}
-
 	m5mo_readw(M5MO_CATEGORY_SYS, M5MO_SYS_VER_FW, &fw_ver);
 	m5mo_readw(M5MO_CATEGORY_SYS, M5MO_SYS_VER_PARAM, &param_ver);
 	m5mo_readw(M5MO_CATEGORY_SYS, M5MO_SYS_VER_AWB, &awb_ver);
 
-	if (m5mo_exif->unique_id[0] == 'O' && m5mo_exif->unique_id[1] == 'L'){
-		m5mo_readw(M5MO_CATEGORY_LENS, M5MO_LENS_AF_CAL_DATA, &cal_ver);
-	}
 	
 	printk("*************************************\n");
 	printk("[M5MO] F/W Version: %s\n", m5mo_exif->unique_id);
 	printk("[M5MO] Firmware Version: %x\n", fw_ver);
 	printk("[M5MO] Parameter Version: %x\n", param_ver);
 	printk("[M5MO] AWB Version: %x\n", awb_ver);
-	if (m5mo_exif->unique_id[0] == 'O' && m5mo_exif->unique_id[1] == 'L'){
-		printk("[M5MO] AF Cal. Ver :%d\n", cal_ver);
-	}
 	printk("*************************************\n");
 
 	return 0;
@@ -1864,11 +1741,13 @@ static int m5mo_mipi_mode(int mode)
 	CAM_DEBUG("%d",config_csi);
 
 	if (!config_csi) {
+
+		
 		m5mo_csi_params.lane_cnt = 2;
 		m5mo_csi_params.data_format = CSI_8BIT;
 		m5mo_csi_params.lane_assign = 0xe4;
 		m5mo_csi_params.dpcm_scheme = 0;
-		m5mo_csi_params.settle_cnt = 0x14; // 24 -> 20
+		m5mo_csi_params.settle_cnt = 0x2F; //0x14 ->0x2F// 24 -> 20
 		rc = msm_camio_csi_config(&m5mo_csi_params);
 		if (rc < 0)
 			printk(KERN_ERR "config csi controller failed \n");
@@ -1890,6 +1769,7 @@ static void m5mo_init_param(void)
 	m5mo_ctrl->settings.preview_size.height = 480;
 	m5mo_ctrl->settings.check_dataline = 0;
 	m5mo_ctrl->settings.fps = 30;
+	m5mo_ctrl->settings.started = 0;
 
 	m5mo_ctrl->isp.bad_fw = 0;
 	m5mo_ctrl->isp.issued = 0;
@@ -1934,7 +1814,7 @@ static int m5mo_start(void)
 
 	cam_info("set antibanding");
 
-#if defined (CONFIG_JPN_MODEL_SC_03D)
+#if defined(CONFIG_JPN_MODEL_SC_03D) || defined(CONFIG_HKTW_MODEL_GT_N7005)
 	/* set auto flicker - 50Hz */
 	err = m5mo_writeb(M5MO_CATEGORY_AE, M5MO_AE_FLICKER, 0x01);
 #else
@@ -2010,6 +1890,10 @@ static long m5mo_preview_mode(void)
 	}
 	/* AE/AWB Unlock */
 	m5mo_set_lock(0);
+	if (!m5mo_ctrl->settings.started) { //ae/awb delay
+		m5mo_ctrl->settings.started = 1;
+		msleep(80); 	
+	}
 	
 	if (m5mo_ctrl->settings.check_dataline) {
 		m5mo_check_dataline(m5mo_ctrl->settings.check_dataline);
@@ -2035,6 +1919,7 @@ static long m5mo_snapshot_mode(void)
 }
 
 
+#ifdef FEATURE_CAMERA_HDR
 static long m5mo_snapshot_mode_hdr(void)
 {
 	u32 int_factor;
@@ -2091,7 +1976,7 @@ static long m5mo_snapshot_mode_hdr(void)
 	
 	return 0;
 }
-
+#endif
 
 static long m5mo_snapshot_transfer_start(void)
 {
@@ -2100,6 +1985,10 @@ static long m5mo_snapshot_transfer_start(void)
 	int err = 0;
 	
 	m5mo_ctrl->focus.center = 1;
+
+	m5mo_ctrl->jpeg.main_size = 0;
+	m5mo_ctrl->jpeg.thumb_size = 0;
+	m5mo_ctrl->jpeg.jpeg_done = 0;
 
 	if (!(m5mo_ctrl->isp.int_factor & M5MO_INT_CAPTURE)) {
 		int_factor = m5mo_wait_interrupt(m5mo_ctrl->settings.face_beauty ? M5MO_ISP_AFB_TIMEOUT : M5MO_ISP_TIMEOUT);
@@ -2123,7 +2012,10 @@ static long m5mo_snapshot_transfer_start(void)
 
 	err = m5mo_readl(M5MO_CATEGORY_CAPCTRL, M5MO_CAPCTRL_IMG_SIZE, &main_size);
 	err = m5mo_readl(M5MO_CATEGORY_CAPCTRL, M5MO_CAPCTRL_THUMB_SIZE, &thumb_size);
-	cam_info("size: 0x%x, 0x%x", main_size, thumb_size);
+	cam_info("##############size1: 0x%x, 0x%x", main_size, thumb_size);
+	m5mo_ctrl->jpeg.main_size = main_size;
+	m5mo_ctrl->jpeg.thumb_size = thumb_size;
+	m5mo_ctrl->jpeg.jpeg_done = 1;
 
 		/* get exif data */
 	m5mo_get_exif();
@@ -2150,15 +2042,33 @@ static long m5mo_snapshot_transfer_start(void)
 }
 
 
+int m5mo_sensor_get_jpeg_size(int32_t size_cmd, unsigned int *size)
+{
+	int wait_count = 5;
+	
+	while ((--wait_count) > 0 && (m5mo_ctrl->jpeg.jpeg_done == 0)){
+		mdelay(5);
+	}
+
+	CAM_DEBUG("jpeg done : %d", m5mo_ctrl->jpeg.jpeg_done);
+	
+	if (size_cmd == SIZE_MAIN) {
+		(*size) =  m5mo_ctrl->jpeg.main_size;
+	} else {
+		(*size) = m5mo_ctrl->jpeg.thumb_size;
+	}
+
+	return 0;
+}
+
+
 
 static long m5mo_set_sensor_mode(int mode)
 {
-
 	if (m5mo_ctrl->isp.bad_fw){
 		cam_err("\"Unknown\" state, please update F/W");
 		return -ENOSYS;
 	}
-
 
 	switch (mode) {
 	case SENSOR_PREVIEW_MODE:
@@ -2403,15 +2313,8 @@ static irqreturn_t m5mo_register_isp_irq(const struct msm_camera_sensor_info *da
 	int err = 0;
 
 	m5mo_ctrl->isp.irq = 0;
-	
 	if(data->irq) {
 		CAM_DEBUG("E");
-		err = gpio_request(GPIO_ISP_INT, "ISP_INT");
-		if (err) {
-			pr_err("%s: ISP_INT gpio %d request failed\n",__func__, GPIO_ISP_INT);
-		}
-		gpio_direction_input(GPIO_ISP_INT);
-		
 		init_waitqueue_head(&m5mo_ctrl->isp.wait);
 		err = request_irq(data->irq, m5mo_isp_isr, IRQF_TRIGGER_RISING, "m5mo_isp", NULL);
 		m5mo_ctrl->isp.irq = 1;
@@ -2428,64 +2331,38 @@ static int m5mo_sensor_init_probe(const struct msm_camera_sensor_info *data)
 #ifdef	FORCE_FIRMWARE_UPDATE
 	struct file* fp;
 #endif
-
+#if 0 // -> msm_io_8x60.c, board-msm8x60_XXX.c
 	CAM_DEBUG("POWER ON START ");
 	
-	gpio_set_value_cansleep(CAM_8M_RST, LOW);
-	gpio_set_value_cansleep(CAM_IO_EN, LOW);  //HOST 1.8V
-	gpio_set_value_cansleep(CAM_VGA_EN, LOW);
-	gpio_set_value_cansleep(CAM_VGA_RST, LOW);
-	mdelay(1);
-	
-	cam_ldo_power_on();
-	mdelay(1);
-	
-	msm_camio_clk_rate_set(24000000);  // ??? 
-#if defined (CONFIG_SENSOR_SR200PC20M)
-	mdelay(30); // min 30ms
-#else
-	mdelay(5); // min 350ns
-#endif
-
-#if defined (CONFIG_SENSOR_SR200PC20M)
-	gpio_set_value_cansleep(CAM_VGA_RST, HIGH);
-	mdelay(5); // min 5ms
-	gpio_set_value_cansleep(CAM_VGA_EN, LOW);
-	mdelay(1);
-#endif
-
-	gpio_set_value_cansleep(CAM_8M_RST, HIGH);
-	//msleep(30); // min 350ns
-	mdelay(5);
-	
 	CAM_DEBUG("POWER ON END ");
-	
-	//m5mo_register_isp_irq(data);  
+#endif	
 
 #ifdef FORCE_FIRMWARE_UPDATE
-	if((firmware_update_mode == 0 ) && (fp = filp_open(M5MO_FW_PATH_SDCARD, O_RDONLY, S_IRUSR)) > 0)
-	{
+	if (firmware_update_mode == 0 ) {
+		if ( (fp = filp_open(M5MO_FW_PATH_SDCARD, O_RDONLY, S_IRUSR)) > 0) {
 		printk(" #### FIRMWARE UPDATE MODE ####\n");
 		firmware_update_mode = 1;
 		filp_close(fp, current->files);
 
 		m5mo_load_fw();
+		}else {
+			printk(" #### FIRMWARE UPDATE MODE - FAIL ####\n");
+			return false;
+		}
 	}
 	else
-	{
 #endif
+	{	
 		m5mo_register_isp_irq(data);  
 		rc =(int)m5mo_start();
 		
 		CAM_DEBUG("m5mo_start END %d", rc);
 
 #ifdef CONFIG_FB_MSM_MDP_ADDITIONAL_BUS_SCALING
+		CAM_DEBUG("require_exceptional_MDP_clock");
 		require_exceptional_MDP_clock = 1;
-#endif 		
-
-#ifdef FORCE_FIRMWARE_UPDATE
-	}
 #endif
+	}
 
 	return rc;
 }
@@ -2507,8 +2384,13 @@ int m5mo_sensor_open_init(const struct msm_camera_sensor_info *data)
 		goto init_done;
 	}	
 	
-	if (data)
+	if (data) {
 		m5mo_ctrl->sensordata = data;
+	} else {
+		printk("m5mo_sensor_open_init failed! msm_camera_sensor_info :NULL\n");
+		rc = -ENOMEM;
+		goto init_done;
+	}
 
 	m5mo_exif = kzalloc(sizeof(struct m5mo_exif_data), GFP_KERNEL);
 	if (!m5mo_exif) {
@@ -2520,8 +2402,14 @@ int m5mo_sensor_open_init(const struct msm_camera_sensor_info *data)
   	rc = m5mo_sensor_init_probe(data);
 	
 	if (rc < 0) {
+		if (rc == -ENOSYS) { 
+			printk("m5mo_sensor_open_init failed: please update the F/W\n");
+			return 0;
+		}
+		else {
 		printk("m5mo_sensor_open_init failed!\n");
 		goto init_fail;
+	}
 	}
 
 	cam_err("X");
@@ -2701,20 +2589,19 @@ int m5mo_sensor_ext_config(void __user *argp)
 	int rc = 0;
 
 	if (!m5mo_ctrl)
-		return -ENOSYS;
-	
-	if (m5mo_ctrl->isp.bad_fw){
-		cam_err("\"Unknown\" state, please update F/W");
-		return -ENOSYS;
-	}
+		return -EFAULT;
 	
 	if(copy_from_user((void *)&cfg_data, (const void *)argp, sizeof(cfg_data)))	{
 		cam_err("copy_to_user Failed");
 		return -EFAULT;
 	}
 
+	if (m5mo_ctrl->isp.bad_fw && cfg_data.cmd != EXT_CFG_SET_FIRMWARE_UPDATE){
+		cam_err("\"Unknown\" state, please update F/W ");
+		return -ENOSYS;
+	}
+
 	switch(cfg_data.cmd) {
-		
 	case EXT_CFG_SET_FIRMWARE_UPDATE:
 		rc = m5mo_firmware_update_mode(cfg_data.value_1);			
 		break;
@@ -2731,28 +2618,16 @@ int m5mo_sensor_ext_config(void __user *argp)
 		rc = m5mo_set_scene(cfg_data.value_1);
 		break;
 		
-	case EXT_CFG_SET_SHARPNESS:
-		rc = m5mo_set_sharpness(cfg_data.value_1);
-		break;
-
 	case EXT_CFG_SET_EFFECT:
 		rc = m5mo_set_effect(cfg_data.value_1);
 		break;
 		
-	case EXT_CFG_SET_SATURATION:
-		rc = m5mo_set_saturation(cfg_data.value_1);
-		break;
-
 	case EXT_CFG_SET_ISO:
 		rc = m5mo_set_iso(cfg_data.value_1);
 		break;
 
 	case EXT_CFG_SET_WB:
 		rc = m5mo_set_whitebalance(cfg_data.value_1);
-		break;
-
-	case EXT_CFG_SET_CONTRAST:
-		rc = m5mo_set_contrast(cfg_data.value_1);
 		break;
 
 	case EXT_CFG_SET_BRIGHTNESS:
@@ -2815,23 +2690,25 @@ int m5mo_sensor_ext_config(void __user *argp)
 		rc = m5mo_set_wdr(cfg_data.value_1);
 		break;
 		
+	case EXT_CFG_SET_BEAUTY:
+		rc = m5mo_set_face_beauty(cfg_data.value_1);
+		break;
+		
 	case EXT_CFG_SET_DTP:
 		m5mo_ctrl->settings.check_dataline = cfg_data.value_1;
 		if(!m5mo_ctrl->settings.check_dataline)
 			m5mo_check_dataline(cfg_data.value_1);
 		break;
 		
-	case EXT_CFG_SET_BEAUTY:
-		rc = m5mo_set_face_beauty(cfg_data.value_1);
+	case EXT_CFG_GET_JPEG_SIZE:
+		rc = m5mo_sensor_get_jpeg_size(cfg_data.value_1, &cfg_data.value_2);	
+		cam_info("size_%d : 0x%x", cfg_data.value_1, cfg_data.value_2);
 		break;
 
 	case EXT_CFG_GET_EXIF:
 		rc = m5mo_sensor_get_exif_data(&cfg_data.value_1, &cfg_data.value_2);	
 		break;
 
-	case EXT_CFG_SET_HDR:
-		rc = m5mo_set_hdr(cfg_data.value_1);
-		break;
 		
 	case EXT_CFG_GET_SENSOR_FW_VER:
 		strcpy(cfg_data.value_string, m5mo_exif->unique_id);
@@ -2842,8 +2719,7 @@ int m5mo_sensor_ext_config(void __user *argp)
 		break;
 	}
 
-	if(copy_to_user((void *)argp, (const void *)&cfg_data, sizeof(cfg_data)))
-	{
+	if(copy_to_user((void *)argp, (const void *)&cfg_data, sizeof(cfg_data))) {
 		cam_err("copy_to_user Failed");
 	}
 	
@@ -2859,7 +2735,12 @@ int m5mo_sensor_config(void __user *argp)
 		return -EFAULT;
 
 	if (!m5mo_ctrl)
+		return -EFAULT;
+	
+	if (m5mo_ctrl->isp.bad_fw){
+		cam_err("\"Unknown\" state, please update F/W");
 		return -ENOSYS;
+	}
 
 	CAM_DEBUG("cfgtype = %d, mode = %d",cfg_data.cfgtype, cfg_data.mode);
 
@@ -2883,25 +2764,21 @@ int m5mo_sensor_release(void)
 		cam_err("failed to set soft landing");
 	
 	mdelay(3);
-	
+#if 0	
 	CAM_DEBUG("POWER OFF START");
-#if defined (CONFIG_SENSOR_SR200PC20M)
-	gpio_set_value_cansleep(CAM_8M_RST, LOW);
-	mdelay(1);
-	gpio_set_value_cansleep(CAM_VGA_RST, LOW);
-#else
+	
 	gpio_set_value_cansleep(CAM_VGA_RST, LOW);
 	gpio_set_value_cansleep(CAM_8M_RST, LOW);
-#endif
 	mdelay(2);
 	
-	cam_ldo_power_off( );
+	main_cam_ldo_power(OFF);
+	
+	CAM_DEBUG("POWER OFF END");
+#endif
 
 #ifdef CONFIG_FB_MSM_MDP_ADDITIONAL_BUS_SCALING
 	require_exceptional_MDP_clock = 0;
-#endif 	
-	
-	CAM_DEBUG("POWER OFF END");
+#endif
 
 	if (!m5mo_ctrl)
 		goto release_done;
@@ -2954,27 +2831,15 @@ static int m5mo_i2c_probe(struct i2c_client *client, const struct i2c_device_id 
 		CDBG("failed to create device file, %s\n",
 			dev_attr_camera_fw.attr.name);
 	}
-	camera_class = class_create(THIS_MODULE, "camera");
-	if (IS_ERR(camera_class))
-		pr_err("%s Failed to create class(camera)!\n", __func__);
 
-	camera_device = device_create(camera_class, NULL, 0, NULL, "rear");
-	if (IS_ERR(camera_device)) {
-		pr_err("%s Failed to create device!\n", __func__);
-	}
-	if (device_create_file(camera_device, &dev_attr_rear_flash) < 0) {
-		pr_err("%s Failed to create attr file!!\n", __func__);
-	}
-#if defined (CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I757M)
-	if (get_hw_rev() >= 0x06) {
-		gpio_tlmm_config(GPIO_CFG(CAM_SW_EN, OFF, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
-		gpio_set_value_cansleep(CAM_SW_EN, OFF);
- 	}
-	gpio_tlmm_config(GPIO_CFG(TORCH_EN, OFF, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
-	gpio_tlmm_config(GPIO_CFG(TORCH_SET, OFF, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
+#if defined (CONFIG_USA_MODEL_SGH_I757)
+#define TORCH_EN		62
+#define TORCH_SET		63
+	gpio_tlmm_config(GPIO_CFG(TORCH_EN, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
+	gpio_tlmm_config(GPIO_CFG(TORCH_SET, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
 
-	gpio_set_value_cansleep(TORCH_EN, OFF);
-	gpio_set_value_cansleep(TORCH_SET, OFF);
+	gpio_set_value_cansleep(TORCH_EN, 0);
+	gpio_set_value_cansleep(TORCH_SET, 0);
 #endif
 	return 0;
 
@@ -2995,7 +2860,6 @@ static int __exit m5mo_i2c_remove(struct i2c_client *client)
 
 	device_remove_file(&client->dev, &dev_attr_camera_type);
 	device_remove_file(&client->dev, &dev_attr_camera_fw);
-	device_remove_file(camera_device, &dev_attr_rear_flash);
 
 	m5mo_client = NULL;
 	m5mo_sensorw = NULL;
@@ -3176,24 +3040,15 @@ static int m5mo_program_fw(u8* buf, u32 addr, u32 unit, u32 count, u8 id)
 	return 0;
 }
 
+
 static int m5mo_reset_for_update(void)
 {
-	CAM_DEBUG("POWER OFF START");
-	gpio_set_value_cansleep(CAM_8M_RST, LOW);
-	mdelay(3);
-	cam_ldo_power_off( );
-	mdelay(10);
-	CAM_DEBUG("POWER OFF END");
-
-	CAM_DEBUG("POWER ON START ");
-	cam_ldo_power_on();
-	mdelay(1);
-	msm_camio_clk_rate_set(24000000);  // ??? 
-	mdelay(5); // min 350ns
-	gpio_set_value_cansleep(CAM_8M_RST, HIGH);
-	mdelay(30);
-	CAM_DEBUG("POWER ON END ");
-
+	if (!m5mo_ctrl)
+		return 0;
+	
+	CAM_DEBUG(" E ");
+	msm_camio_sensor_reset((struct msm_camera_sensor_info *)m5mo_ctrl->sensordata);
+	
 	return 0;
 }
 

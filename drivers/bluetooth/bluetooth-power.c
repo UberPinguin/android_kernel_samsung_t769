@@ -8,11 +8,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
- * 02110-1301, USA.
  */
 /*
  * Bluetooth Power Switch Module
@@ -26,16 +21,18 @@
 #include <linux/platform_device.h>
 #include <linux/rfkill.h>
 
+static bool previous;
+
 static int bluetooth_toggle_radio(void *data, bool blocked)
 {
 	int ret = 0;
 	int (*power_control)(int enable);
-
 	printk("%s",__func__);
 	power_control = data;
-
+	if (previous != blocked)
 	ret = (*power_control)(!blocked);
-
+	if (!ret)
+		previous = blocked;
 	return ret;
 }
 
@@ -43,14 +40,19 @@ static const struct rfkill_ops bluetooth_power_rfkill_ops = {
 	.set_block = bluetooth_toggle_radio,
 };
 
-
+#ifdef BTLD_CONTROL_WAKE_GPIO
 extern void bluesleep_rfkill_alloc(void);
+#endif
+
+#if defined(CONFIG_KOR_MODEL_SHV_E150S) || defined(CONFIG_JPN_MODEL_SC_01E)
+extern void init_bluetooth_Uart_gpio(void);
+static int first_enter_bt_power_probe = 1;
+#endif
 
 static int bluetooth_power_rfkill_probe(struct platform_device *pdev)
 {
 	struct rfkill *rfkill;
 	int ret;
-
 	 printk("%s\n",__func__);
 
 	rfkill = rfkill_alloc("bt_power", &pdev->dev, RFKILL_TYPE_BLUETOOTH,
@@ -64,7 +66,8 @@ static int bluetooth_power_rfkill_probe(struct platform_device *pdev)
 
 	/* force Bluetooth off during init to allow for user control */
 	rfkill_init_sw_state(rfkill, 1);
-
+	previous = 1;
+	
 	ret = rfkill_register(rfkill);
 	if (ret) {
 		dev_err(&pdev->dev, "rfkill register failed=%d\n", ret);
@@ -73,9 +76,15 @@ static int bluetooth_power_rfkill_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, rfkill);
-
+#ifdef BTLD_CONTROL_WAKE_GPIO
 	bluesleep_rfkill_alloc();
-
+#endif
+	#if defined(CONFIG_KOR_MODEL_SHV_E150S) || defined(CONFIG_JPN_MODEL_SC_01E)
+    if(first_enter_bt_power_probe == 1) {
+           init_bluetooth_Uart_gpio();
+       }
+        first_enter_bt_power_probe = 0;
+    #endif
 	return 0;
 }
 
@@ -95,7 +104,6 @@ static void bluetooth_power_rfkill_remove(struct platform_device *pdev)
 static int __devinit bt_power_probe(struct platform_device *pdev)
 {
 	int ret = 0;
-
 	printk("%s\n",__func__);
 
 	dev_dbg(&pdev->dev, "%s\n", __func__);
@@ -131,9 +139,7 @@ static struct platform_driver bt_power_driver = {
 static int __init bluetooth_power_init(void)
 {
 	int ret;
-
  pr_info("bluetooth_power_init \n");
-
 	ret = platform_driver_register(&bt_power_driver);
 	return ret;
 }

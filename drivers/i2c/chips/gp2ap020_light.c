@@ -223,12 +223,33 @@ light_delay_store(struct device *dev,
 {
 	struct input_dev *input_data = to_input_dev(dev);
 	struct sensor_data *data = input_get_drvdata(input_data);
+	#if 0
 	int delay = simple_strtoul(buf, NULL, 10);
 
 	if (delay < 0) {
 		return count;
 	}
 
+
+	#else
+	int delay;
+	int err = 0;
+
+	err = kstrtoint(buf, 10, &delay);
+	if (err)
+		pr_err("%s, kstrtoint failed.", __func__);
+		
+	if (delay < 0) {
+		return count;
+	}
+
+	delay = delay / 1000000;	//ns to msec 
+
+	#endif
+	
+	pr_info("%s, new_delay = %d, old_delay = %d", __func__, delay,
+	       data->delay);
+	       
 	if (SENSOR_MAX_DELAY < delay) {
 		delay = SENSOR_MAX_DELAY;
 	}
@@ -445,7 +466,7 @@ static ssize_t light_testmode_show(struct device *dev, struct device_attribute *
 }
 
 
-static DEVICE_ATTR(delay, S_IRUGO|S_IWUSR|S_IWGRP, light_delay_show, light_delay_store);
+static DEVICE_ATTR(poll_delay, S_IRUGO|S_IWUSR|S_IWGRP, light_delay_show, light_delay_store);
 static DEVICE_ATTR(enable, S_IRUGO|S_IWUSR|S_IWGRP, light_enable_show, light_enable_store);
 static DEVICE_ATTR(wake, S_IWUSR|S_IWGRP, NULL, light_wake_store);
 static DEVICE_ATTR(data, S_IRUGO, light_data_show, NULL);
@@ -456,7 +477,7 @@ static DEVICE_ATTR(lightsensor_file_state, 0644, lightsensor_file_state_show, NU
 
 
 static struct attribute *lightsensor_attributes[] = {
-	&dev_attr_delay.attr,
+	&dev_attr_poll_delay.attr,
 	&dev_attr_enable.attr,
 	&dev_attr_wake.attr,
 	&dev_attr_data.attr,
@@ -789,7 +810,7 @@ int lightsensor_get_adcvalue(void)
 static int lightsensor_onoff(u8 onoff)
 {
 	u8 value;
-    int i;
+        // int i;
 
 	printk("%s : light_sensor onoff = %d\n", __func__, onoff);
 
@@ -900,6 +921,9 @@ lightsensor_probe(struct platform_device *pdev)
 	input_set_capability(input_data, EV_ABS, ABS_MISC); 
 	input_set_capability(input_data, EV_ABS, ABS_WAKE); /* wake */
 	input_set_capability(input_data, EV_ABS, ABS_CONTROL_REPORT); /* enabled/delay */
+	input_set_abs_params(input_data, ABS_MISC, 0, 1, 0, 0);
+	input_set_abs_params(input_data, ABS_WAKE, 0, 163840, 0, 0);
+	input_set_abs_params(input_data, ABS_CONTROL_REPORT, 0, 98432, 0, 0);
 	input_data->name = SENSOR_NAME;
 
 	rt = input_register_device(input_data);

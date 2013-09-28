@@ -90,38 +90,12 @@ enum cam_metering_mode {
 	METERING_MAX,
 };
 
+
 /* Scene Mode */ 
-enum cam_scene_mode {
-	SCENE_OFF = 1,
-	SCENE_PORTRAIT,
-	SCENE_NIGHTSHOT,
-	SCENE_BACKLIGHT,
-	SCENE_LANDSCAPE,
-	SCENE_SPORTS,
-	SCENE_PARTY,
-	SCENE_BEACH,
-	SCENE_SUNSET,
-	SCENE_DAWN,
-	SCENE_FALL,
-	SCENE_FIREWORK,
-	SCENE_TEXT,
-	SCENE_CANDLE,
-};
 
 /* Effect  */ 
-enum cam_effect_mode {
-	EFFECT_OFF = 0,
-	EFFECT_MONO,
-	EFFECT_NEGATIVE,
-	EFFECT_SEPIA = 4,
-};
 
 /* Focus  */ 
-enum cam_focus_mode {
-	FOCUS_AUTO = 0,
-	FOCUS_MACRO,
-};
-
 // from msm_camera.h
 
 #endif

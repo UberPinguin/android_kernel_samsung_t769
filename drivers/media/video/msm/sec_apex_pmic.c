@@ -19,12 +19,7 @@ CAMERA Power control
 
 static struct regulator *i_core12, *s_core12, *s_io18, *i_host18, *af28, *vt_core15;
 
-#if defined (CONFIG_KOR_MODEL_SHV_E110S) || defined (CONFIG_KOR_MODEL_SHV_E120S)|| defined (CONFIG_KOR_MODEL_SHV_E120L) \
- || defined (CONFIG_JPN_MODEL_SC_03D) \
- || defined (CONFIG_KOR_MODEL_SHV_E120K) || defined(CONFIG_KOR_MODEL_SHV_E160S) \
- || defined (CONFIG_TARGET_LOCALE_USA)
 extern unsigned int get_hw_rev(void);
-#endif
 
 
 void cam_mclk_onoff(int onoff)

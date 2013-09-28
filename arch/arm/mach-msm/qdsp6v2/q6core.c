@@ -8,11 +8,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
- * 02110-1301, USA.
  */
 
 #include <linux/kernel.h>
@@ -32,12 +27,6 @@
 #include <mach/msm_smd.h>
 #include <mach/qdsp6v2/apr.h>
 #include "q6core.h"
-
-#if defined (CONFIG_Q1_KOR_AUDIO)
-#define pr_err printk
-#define pr_info printk
-#define pr_dbg printk
-#endif
 
 #define TIMEOUT_MS 1000
 
@@ -260,8 +249,6 @@ static ssize_t apr_debug_write(struct file *file, const char __user *buf,
 	int len;
 	static int t_len;
 
-	if (count < 0)
-		return 0;
 	len = count > 63 ? 63 : count;
 	if (copy_from_user(l_buf + 20 , buf, len)) {
 		pr_info("Unable to copy data from user space\n");
@@ -410,8 +397,8 @@ static int __init core_init(void)
 	core_handle_q = NULL;
 
 #ifdef CONFIG_DEBUG_FS
-	dentry = debugfs_create_file("apr", S_IFREG |  S_IWUSR |S_IWGRP,
-				NULL, (void *) NULL, &apr_debug_fops);
+	dentry = debugfs_create_file("apr", S_IFREG | S_IRUGO | S_IWUSR
+		| S_IWGRP, NULL, (void *) NULL, &apr_debug_fops);
 #endif /* CONFIG_DEBUG_FS */
 
 	return 0;

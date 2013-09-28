@@ -13,15 +13,9 @@
 #include <linux/platform_device.h>
 #include <linux/err.h>
 #include <mach/qdsp6v2/audio_dev_ctl.h>
-#include <mach/qdsp6v2/q6afe.h>
+#include <sound/q6afe.h>
 #include <linux/slab.h>
 #include "snddev_virtual.h"
-
-#if defined (CONFIG_Q1_KOR_AUDIO)
-#define pr_err printk
-#define pr_info printk
-#define pr_dbg printk
-#endif
 
 static DEFINE_MUTEX(snddev_virtual_lock);
 

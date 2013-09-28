@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -8,14 +8,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
- * 02110-1301, USA.
- *
  */
-
 #include <linux/slab.h>
 #include <linux/init.h>
 #include <linux/module.h>
@@ -28,7 +21,6 @@
 #include <linux/diagchar.h>
 #include <linux/delay.h>
 #include <linux/reboot.h>
-#include <linux/smp_lock.h>
 #ifdef CONFIG_DIAG_OVER_USB
 #include <mach/usbdiag.h>
 #endif
@@ -38,21 +30,28 @@
 #include "diagmem.h"
 #include "diagchar.h"
 #include "diagfwd.h"
+#include "diagfwd_cntl.h"
 #include "diagchar_hdlc.h"
 #ifdef CONFIG_DIAG_SDIO_PIPE
 #include "diagfwd_sdio.h"
 #endif
-
-MODULE_DESCRIPTION("Diag Char Driver");
-MODULE_LICENSE("GPL v2");
-MODULE_VERSION("1.0");
+#define MODE_CMD	41
+#define RESET_ID	2
 
 int diag_debug_buf_idx;
 unsigned char diag_debug_buf[1024];
 static unsigned int buf_tbl_size = 8; /*Number of entries in table of buffers */
-
+struct diag_master_table entry;
+smd_channel_t *ch_temp, *chqdsp_temp, *ch_wcnss_temp;
+int diag_event_num_bytes;
+int diag_event_config;
 struct diag_send_desc_type send = { NULL, NULL, DIAG_STATE_START, 0 };
 struct diag_hdlc_dest_type enc = { NULL, NULL, 0 };
+struct mask_info {
+	int equip_id;
+	int num_items;
+	int index;
+};
 
 #define ENCODE_RSP_AND_SEND(buf_length)				\
 do {									\
@@ -62,33 +61,80 @@ do {									\
 	send.terminate = 1;						\
 	if (!driver->in_busy_1) {					\
 		enc.dest = driver->buf_in_1;				\
-		enc.dest_last = (void *)(driver->buf_in_1 + 499);	\
+		enc.dest_last = (void *)(driver->buf_in_1 + APPS_BUF_SIZE - 1);\
 		diag_hdlc_encode(&send, &enc);				\
 		driver->write_ptr_1->buf = driver->buf_in_1;		\
 		driver->write_ptr_1->length = (int)(enc.dest - \
 						(void *)(driver->buf_in_1)); \
-		usb_diag_write(driver->legacy_ch, driver->write_ptr_1);	\
-		memset(driver->apps_rsp_buf, '\0', 500);		\
+		driver->in_busy_1 = 1;					\
+		diag_device_write(driver->buf_in_1, MODEM_DATA, \
+						 driver->write_ptr_1); \
+		memset(driver->apps_rsp_buf, '\0', APPS_BUF_SIZE);	\
 	}								\
 } while (0)
 
 #define CHK_OVERFLOW(bufStart, start, end, length) \
 ((bufStart <= start) && (end - start >= length)) ? 1 : 0
 
-int chk_config_get_id()
+int chk_config_get_id(void)
 {
 	/* For all Fusion targets, Modem will always be present */
-	if (machine_is_msm8x60_charm_surf() || machine_is_msm8x60_charm_ffa())
+	if (machine_is_msm8x60_fusion() || machine_is_msm8x60_fusn_ffa())
 		return 0;
 
 	switch (socinfo_get_id()) {
 	case APQ8060_MACHINE_ID:
+	case MSM8660_MACHINE_ID:
 		return APQ8060_TOOLS_ID;
 	case AO8960_MACHINE_ID:
+	case MSM8260A_MACHINE_ID:
 		return AO8960_TOOLS_ID;
+	case APQ8064_MACHINE_ID:
+		return APQ8064_TOOLS_ID;
+	case MSM8930_MACHINE_ID:
+		return MSM8930_TOOLS_ID;
+	case MSM8974_MACHINE_ID:
+		return MSM8974_TOOLS_ID;
 	default:
 		return 0;
 	}
+}
+
+/*
+ * This will return TRUE for targets which support apps only mode and hence SSR.
+ * This applies to 8960 and newer targets.
+ */
+int chk_apps_only(void)
+{
+	switch (socinfo_get_id()) {
+	case AO8960_MACHINE_ID:
+	case APQ8064_MACHINE_ID:
+	case MSM8930_MACHINE_ID:
+	case MSM8630_MACHINE_ID:
+	case MSM8230_MACHINE_ID:
+	case APQ8030_MACHINE_ID:
+	case MSM8627_MACHINE_ID:
+	case MSM8227_MACHINE_ID:
+	case MSM8974_MACHINE_ID:
+	case MDM9615_MACHINE_ID:
+	case MSM8260A_MACHINE_ID:
+		return 1;
+	default:
+		return 0;
+	}
+}
+
+/*
+ * This will return TRUE for targets which support apps as master.
+ * Thus, SW DLOAD and Mode Reset are supported on apps processor.
+ * This applies to 8960 and newer targets.
+ */
+int chk_apps_master(void)
+{
+	if (cpu_is_msm8960() || cpu_is_msm8930() || cpu_is_msm9615())
+		return 1;
+	else
+		return 0;
 }
 
 void __diag_smd_send_req(void)
@@ -112,11 +158,11 @@ void __diag_smd_send_req(void)
 
 		if (r > IN_BUF_SIZE) {
 			if (r < MAX_IN_BUF_SIZE) {
-				printk(KERN_ALERT "\n diag: SMD sending in "
+				pr_err("diag: SMD sending in "
 						   "packets upto %d bytes", r);
 				buf = krealloc(buf, r, GFP_KERNEL);
 			} else {
-				printk(KERN_ALERT "\n diag: SMD sending in "
+				pr_err("diag: SMD sending in "
 				"packets more than %d bytes", MAX_IN_BUF_SIZE);
 				return;
 			}
@@ -149,7 +195,7 @@ int diag_device_write(void *buf, int proc_num, struct diag_request *write_ptr)
 					driver->buf_tbl[i].length =
 								 driver->used;
 #ifdef DIAG_DEBUG
-					printk(KERN_INFO "\n ENQUEUE buf ptr"
+					pr_debug("diag: ENQUEUE buf ptr"
 						   " and length is %x , %d\n",
 						   (unsigned int)(driver->buf_
 				tbl[i].buf), driver->buf_tbl[i].length);
@@ -162,7 +208,7 @@ int diag_device_write(void *buf, int proc_num, struct diag_request *write_ptr)
 						 driver->logging_process_id)
 				break;
 		if (i < driver->num_clients) {
-			driver->data_ready[i] |= MEMORY_DEVICE_LOG_TYPE;
+			driver->data_ready[i] |= USER_SPACE_LOG_TYPE;
 			wake_up_interruptible(&driver->wait_q);
 		} else
 			return -EINVAL;
@@ -177,7 +223,18 @@ int diag_device_write(void *buf, int proc_num, struct diag_request *write_ptr)
 			driver->in_busy_qdsp_2 = 0;
 			queue_work(driver->diag_wq, &(driver->
 						diag_read_smd_qdsp_work));
+		}  else if (proc_num == WCNSS_DATA) {
+			driver->in_busy_wcnss = 0;
+			queue_work(driver->diag_wq, &(driver->
+				diag_read_smd_wcnss_work));
 		}
+#ifdef CONFIG_DIAG_SDIO_PIPE
+		else if (proc_num == SDIO_DATA) {
+			driver->in_busy_sdio = 0;
+			queue_work(driver->diag_sdio_wq,
+				&(driver->diag_read_sdio_work));
+		}
+#endif
 		err = -1;
 	}
 #ifdef CONFIG_DIAG_OVER_USB
@@ -206,21 +263,68 @@ int diag_device_write(void *buf, int proc_num, struct diag_request *write_ptr)
 		} else if (proc_num == QDSP_DATA) {
 			write_ptr->buf = buf;
 			err = usb_diag_write(driver->legacy_ch, write_ptr);
+		} else if (proc_num == WCNSS_DATA) {
+			write_ptr->buf = buf;
+			err = usb_diag_write(driver->legacy_ch, write_ptr);
 		}
 #ifdef CONFIG_DIAG_SDIO_PIPE
 		else if (proc_num == SDIO_DATA) {
-			if (machine_is_msm8x60_charm_surf() ||
-					machine_is_msm8x60_charm_ffa()) {
+			if (machine_is_msm8x60_fusion() ||
+					 machine_is_msm8x60_fusn_ffa()) {
 				write_ptr->buf = buf;
 				err = usb_diag_write(driver->mdm_ch, write_ptr);
 			} else
-				pr_err("diag: Incorrect data while USB write");
+				pr_err("diag: Incorrect sdio data "
+						"while USB write\n");
+		}
+#endif
+#ifdef CONFIG_DIAG_HSIC_PIPE
+		else if (proc_num == HSIC_DATA) {
+			if (driver->hsic_device_enabled) {
+				write_ptr->buf = buf;
+				err = usb_diag_write(driver->mdm_ch, write_ptr);
+			} else
+				pr_err("diag: Incorrect hsic data "
+						"while USB write\n");
 		}
 #endif
 		APPEND_DEBUG('d');
 	}
 #endif /* DIAG OVER USB */
     return err;
+}
+
+void __diag_smd_wcnss_send_req(void)
+{
+	void *buf = driver->buf_in_wcnss;
+	int *in_busy_wcnss_ptr = &(driver->in_busy_wcnss);
+	struct diag_request *write_ptr_wcnss = driver->write_ptr_wcnss;
+
+	if ((!driver->in_busy_wcnss) && driver->ch_wcnss && buf) {
+		int r = smd_read_avail(driver->ch_wcnss);
+		if (r > IN_BUF_SIZE) {
+			if (r < MAX_IN_BUF_SIZE) {
+				pr_err("diag: wcnss packets > %d bytes", r);
+				buf = krealloc(buf, r, GFP_KERNEL);
+			} else {
+				pr_err("diag: wcnss pkt > %d", MAX_IN_BUF_SIZE);
+				return;
+			}
+		}
+		if (r > 0) {
+			if (!buf) {
+				pr_err("Out of diagmem for wcnss\n");
+			} else {
+				APPEND_DEBUG('i');
+				smd_read(driver->ch_wcnss, buf, r);
+				APPEND_DEBUG('j');
+				write_ptr_wcnss->length = r;
+				*in_busy_wcnss_ptr = 1;
+				diag_device_write(buf, WCNSS_DATA,
+					 write_ptr_wcnss);
+			}
+		}
+	}
 }
 
 void __diag_smd_qdsp_send_req(void)
@@ -244,11 +348,11 @@ void __diag_smd_qdsp_send_req(void)
 
 		if (r > IN_BUF_SIZE) {
 			if (r < MAX_IN_BUF_SIZE) {
-				printk(KERN_ALERT "\n diag: SMD sending in "
+				pr_err("diag: SMD sending in "
 						   "packets upto %d bytes", r);
 				buf = krealloc(buf, r, GFP_KERNEL);
 			} else {
-				printk(KERN_ALERT "\n diag: SMD sending in "
+				pr_err("diag: SMD sending in "
 				"packets more than %d bytes", MAX_IN_BUF_SIZE);
 				return;
 			}
@@ -302,8 +406,8 @@ static void diag_update_msg_mask(int start, int end , uint8_t *buf)
 	uint8_t *ptr_buffer_end = &(*(driver->msg_masks)) + MSG_MASK_SIZE;
 
 	mutex_lock(&driver->diagchar_mutex);
-	/* First SSID can be zero : So check that last is non-zero */
 
+	/* First SSID can be zero : So check that last is non-zero */
 	while (*(uint32_t *)(ptr + 4)) {
 		first = *(uint32_t *)ptr;
 		ptr += 4;
@@ -348,7 +452,7 @@ static void diag_update_msg_mask(int start, int end , uint8_t *buf)
 
 }
 
-static void diag_update_event_mask(uint8_t *buf, int toggle, int num_bits)
+static void diag_update_event_mask(uint8_t *buf, int toggle, int num_bytes)
 {
 	uint8_t *ptr = driver->event_masks;
 	uint8_t *temp = buf + 2;
@@ -358,9 +462,8 @@ static void diag_update_event_mask(uint8_t *buf, int toggle, int num_bits)
 		memset(ptr, 0 , EVENT_MASK_SIZE);
 	else
 		if (CHK_OVERFLOW(ptr, ptr,
-				 ptr+EVENT_MASK_SIZE,
-				  num_bits/8 + 1))
-			memcpy(ptr, temp , num_bits/8 + 1);
+				 ptr+EVENT_MASK_SIZE, num_bytes))
+			memcpy(ptr, temp , num_bytes);
 		else
 			printk(KERN_CRIT "Not enough buffer space "
 					 "for EVENT_MASK\n");
@@ -370,13 +473,9 @@ static void diag_update_event_mask(uint8_t *buf, int toggle, int num_bits)
 static void diag_update_log_mask(int equip_id, uint8_t *buf, int num_items)
 {
 	uint8_t *temp = buf;
-	struct mask_info {
-		int equip_id;
-		int index;
-	};
 	int i = 0;
 	unsigned char *ptr_data;
-	int offset = 8*MAX_EQUIP_ID;
+	int offset = (sizeof(struct mask_info))*MAX_EQUIP_ID;
 	struct mask_info *ptr = (struct mask_info *)driver->log_masks;
 
 	mutex_lock(&driver->diagchar_mutex);
@@ -387,8 +486,9 @@ static void diag_update_log_mask(int equip_id, uint8_t *buf, int num_items)
 			break;
 		}
 		if ((ptr->equip_id == 0) && (ptr->index == 0)) {
-			/*Reached a null entry */
+			/* Reached a null entry */
 			ptr->equip_id = equip_id;
+			ptr->num_items = num_items;
 			ptr->index = driver->log_masks_length;
 			offset = driver->log_masks_length;
 			driver->log_masks_length += ((num_items+7)/8);
@@ -444,62 +544,187 @@ void diag_update_sleeping_process(int process_id)
 	mutex_unlock(&driver->diagchar_mutex);
 }
 
+void diag_send_data(struct diag_master_table entry, unsigned char *buf,
+					 int len, int type)
+{
+	driver->pkt_length = len;
+	if (entry.process_id != NON_APPS_PROC && type != MODEM_DATA) {
+		diag_update_pkt_buffer(buf);
+		diag_update_sleeping_process(entry.process_id);
+	} else {
+		if (len > 0) {
+			if (entry.client_id == MODEM_PROC && driver->ch) {
+				if (chk_apps_master() &&
+					 (int)(*(char *)buf) == MODE_CMD)
+					if ((int)(*(char *)(buf+1)) ==
+						RESET_ID)
+						return;
+				smd_write(driver->ch, buf, len);
+			} else if (entry.client_id == QDSP_PROC &&
+							 driver->chqdsp) {
+				smd_write(driver->chqdsp, buf, len);
+			} else if (entry.client_id == WCNSS_PROC &&
+							 driver->ch_wcnss) {
+				smd_write(driver->ch_wcnss, buf, len);
+			} else {
+				pr_alert("diag: incorrect channel");
+			}
+		}
+	}
+}
+
+void diag_modem_mask_update_fn(struct work_struct *work)
+{
+	diag_send_msg_mask_update(driver->ch_cntl);
+	diag_send_log_mask_update(driver->ch_cntl);
+	diag_send_event_mask_update(driver->ch_cntl, diag_event_num_bytes);
+}
+
+void diag_qdsp_mask_update_fn(struct work_struct *work)
+{
+	diag_send_msg_mask_update(driver->chqdsp_cntl);
+	diag_send_log_mask_update(driver->chqdsp_cntl);
+	diag_send_event_mask_update(driver->chqdsp_cntl, diag_event_num_bytes);
+}
+
+void diag_wcnss_mask_update_fn(struct work_struct *work)
+{
+	diag_send_msg_mask_update(driver->ch_wcnss_cntl);
+	diag_send_log_mask_update(driver->ch_wcnss_cntl);
+	diag_send_event_mask_update(driver->ch_wcnss_cntl,
+						 diag_event_num_bytes);
+}
+
+void diag_msg_mask_update_fn(struct work_struct *work)
+{
+	diag_send_msg_mask_update(driver->ch_cntl);
+	diag_send_msg_mask_update(driver->chqdsp_cntl);
+	diag_send_msg_mask_update(driver->ch_wcnss_cntl);
+}
+
+void diag_log_mask_update_fn(struct work_struct *work)
+{
+	diag_send_log_mask_update(driver->ch_cntl);
+	diag_send_log_mask_update(driver->chqdsp_cntl);
+	diag_send_log_mask_update(driver->ch_wcnss_cntl);
+}
+
+void diag_send_log_mask_update(smd_channel_t *ch)
+{
+	void *buf = driver->buf_log_mask_update;
+	int header_size = sizeof(struct diag_ctrl_log_mask);
+	struct mask_info *ptr = (struct mask_info *)driver->log_masks;
+	int i, size;
+
+	for (i = 0; i < MAX_EQUIP_ID; i++) {
+		size = (ptr->num_items+7)/8;
+		/* reached null entry */
+		if ((ptr->equip_id == 0) && (ptr->index == 0))
+			break;
+		driver->log_mask->cmd_type = DIAG_CTRL_MSG_LOG_MASK;
+		driver->log_mask->num_items = ptr->num_items;
+		driver->log_mask->data_len  = 11 + size;
+		driver->log_mask->stream_id = 1; /* 2, if dual stream */
+		driver->log_mask->status = 3; /* status for valid mask */
+		driver->log_mask->equip_id = ptr->equip_id;
+		driver->log_mask->log_mask_size = size;
+		memcpy(buf, driver->log_mask, header_size);
+		memcpy(buf+header_size, driver->log_masks+ptr->index, size);
+		msleep(100);
+		if (ch)
+			smd_write(ch, buf, header_size + size);
+		ptr++;
+	}
+}
+
+void diag_send_event_mask_update(smd_channel_t *ch, int num_bytes)
+{
+	void *buf = driver->buf_event_mask_update;
+	int header_size = sizeof(struct diag_ctrl_event_mask);
+
+	/* send event mask update */
+	driver->event_mask->cmd_type = DIAG_CTRL_MSG_EVENT_MASK;
+	driver->event_mask->data_len = 7 + num_bytes;
+	driver->event_mask->stream_id = 1; /* 2, if dual stream */
+	driver->event_mask->status = 3; /* status for valid mask */
+	driver->event_mask->event_config = diag_event_config; /* event config */
+	driver->event_mask->event_mask_size = num_bytes;
+	memcpy(buf, driver->event_mask, header_size);
+	memcpy(buf+header_size, driver->event_masks, num_bytes);
+	msleep(100);
+	if (ch)
+		smd_write(ch, buf, header_size + num_bytes);
+}
+
+void diag_send_msg_mask_update(smd_channel_t *ch)
+{
+	void *buf = driver->buf_msg_mask_update;
+	int first, last;
+	int header_size = sizeof(struct diag_ctrl_msg_mask);
+	uint8_t *ptr = driver->msg_masks;
+
+	while (*(uint32_t *)(ptr + 4)) {
+		first = *(uint32_t *)ptr;
+		ptr += 4;
+		last = *(uint32_t *)ptr;
+		ptr += 4;
+		/* send event mask update */
+		driver->msg_mask->cmd_type = DIAG_CTRL_MSG_F3_MASK;
+		driver->msg_mask->msg_mask_size = last - first + 1;
+		driver->msg_mask->data_len = 11 +
+				 4 * (driver->msg_mask->msg_mask_size);
+		driver->msg_mask->stream_id = 1; /* 2, if dual stream */
+		driver->msg_mask->status = 3; /* status for valid mask */
+		driver->msg_mask->msg_mode = 0; /* Legcay mode */
+		driver->msg_mask->ssid_first = first;
+		driver->msg_mask->ssid_last = last;
+		memcpy(buf, driver->msg_mask, header_size);
+		memcpy(buf+header_size, ptr,
+			 4 * (driver->msg_mask->msg_mask_size));
+		/* since mask updates are slow, so sleep needed as to
+		   prevent modem running out of DSM items */
+		msleep(100);
+		if (ch)
+			smd_write(ch, buf,
+			 header_size + 4*(driver->msg_mask->msg_mask_size));
+		ptr += ((last - first) + 1)*4;
+	}
+}
+
 static int diag_process_apps_pkt(unsigned char *buf, int len)
 {
 	uint16_t subsys_cmd_code;
 	int subsys_id, ssid_first, ssid_last, ssid_range;
 	int packet_type = 1, i, cmd_code;
 	unsigned char *temp = buf;
+	int data_type;
 #if defined(CONFIG_DIAG_OVER_USB)
 	int payload_length;
 	unsigned char *ptr;
 #endif
 
-	/* set event mask */
-	if (*buf == 0x82) {
-		buf += 4;
-		diag_update_event_mask(buf, 1, *(uint16_t *)buf);
-		diag_update_userspace_clients(EVENT_MASKS_TYPE);
-	}
-	/* event mask change */
-	else if ((*buf == 0x60) && (*(buf+1) == 0x0)) {
-		diag_update_event_mask(buf+1, 0, 0);
-		diag_update_userspace_clients(EVENT_MASKS_TYPE);
-#if defined(CONFIG_DIAG_OVER_USB)
-		/* Check for Apps Only 8960 */
-		if (!(driver->ch) && (chk_config_get_id() == AO8960_TOOLS_ID)) {
-			/* echo response back for apps only DIAG */
-			driver->apps_rsp_buf[0] = 0x60;
-			driver->apps_rsp_buf[1] = 0x0;
-			driver->apps_rsp_buf[2] = 0x0;
-			ENCODE_RSP_AND_SEND(2);
-			return 0;
-		}
-#endif
-	}
 	/* Set log masks */
-	else if (*buf == 0x73 && *(int *)(buf+4) == 3) {
+	if (*buf == 0x73 && *(int *)(buf+4) == 3) {
 		buf += 8;
 		/* Read Equip ID and pass as first param below*/
 		diag_update_log_mask(*(int *)buf, buf+8, *(int *)(buf+4));
 		diag_update_userspace_clients(LOG_MASKS_TYPE);
 #if defined(CONFIG_DIAG_OVER_USB)
-		/* Check for Apps Only 8960 */
-		if (!(driver->ch) && (chk_config_get_id() == AO8960_TOOLS_ID)) {
-			/* echo response back for Apps only DIAG */
+		if (chk_apps_only()) {
 			driver->apps_rsp_buf[0] = 0x73;
 			*(int *)(driver->apps_rsp_buf + 4) = 0x3; /* op. ID */
 			*(int *)(driver->apps_rsp_buf + 8) = 0x0; /* success */
 			payload_length = 8 + ((*(int *)(buf + 4)) + 7)/8;
 			for (i = 0; i < payload_length; i++)
-				*(int *)(driver->apps_rsp_buf+12+i) =
-								 *(buf+8+i);
+				*(int *)(driver->apps_rsp_buf+12+i) = *(buf+i);
+			queue_work(driver->diag_cntl_wq,
+				 &(driver->diag_log_mask_update_work));
 			ENCODE_RSP_AND_SEND(12 + payload_length - 1);
 			return 0;
-		}
+		} else
+			buf = temp;
 #endif
-	}
-	/* Check for set message mask  */
+	} /* Check for set message mask  */
 	else if ((*buf == 0x7d) && (*(buf+1) == 0x4)) {
 		ssid_first = *(uint16_t *)(buf + 2);
 		ssid_last = *(uint16_t *)(buf + 4);
@@ -507,19 +732,116 @@ static int diag_process_apps_pkt(unsigned char *buf, int len)
 		diag_update_msg_mask(ssid_first, ssid_last , buf + 8);
 		diag_update_userspace_clients(MSG_MASKS_TYPE);
 #if defined(CONFIG_DIAG_OVER_USB)
-		if (!(driver->ch) && (chk_config_get_id() == AO8960_TOOLS_ID)) {
-			/* echo response back for apps only DIAG */
+		if (chk_apps_only()) {
 			for (i = 0; i < 8 + ssid_range; i++)
 				*(driver->apps_rsp_buf + i) = *(buf+i);
+			*(driver->apps_rsp_buf + 6) = 0x1;
+			queue_work(driver->diag_cntl_wq,
+				 &(driver->diag_msg_mask_update_work));
 			ENCODE_RSP_AND_SEND(8 + ssid_range - 1);
+			return 0;
+		} else
+			buf = temp;
+#endif
+	} else if (*buf == 0x82) {	/* event mask change */
+		buf += 4;
+		diag_event_num_bytes =  (*(uint16_t *)buf)/8+1;
+		diag_update_event_mask(buf, 1, (*(uint16_t *)buf)/8+1);
+		diag_update_userspace_clients(EVENT_MASKS_TYPE);
+#if defined(CONFIG_DIAG_OVER_USB)
+		if (chk_apps_only()) {
+			driver->apps_rsp_buf[0] = 0x82;
+			driver->apps_rsp_buf[1] = 0x0;
+			*(uint16_t *)(driver->apps_rsp_buf + 2) = 0x0;
+			*(uint16_t *)(driver->apps_rsp_buf + 4) =
+							EVENT_LAST_ID + 1;
+			for (i = 0; i < EVENT_LAST_ID/8 + 1; i++)
+				*(unsigned char *)(driver->apps_rsp_buf + 6 + i)
+									 = 0x0;
+			/* cannot do this on work queue, as each event update
+			needs a num_bytes variable. Each queue_work call will
+			overwrite the previous input, as its the same struct */
+			diag_send_event_mask_update(driver->ch_cntl,
+							 diag_event_num_bytes);
+			diag_send_event_mask_update(driver->chqdsp_cntl,
+							 diag_event_num_bytes);
+			diag_send_event_mask_update(driver->ch_wcnss_cntl,
+							 diag_event_num_bytes);
+			ENCODE_RSP_AND_SEND(6 + EVENT_LAST_ID/8);
+			return 0;
+		} else
+			buf = temp;
+#endif
+	} else if (*buf == 0x60) {
+		diag_event_config = *(buf+1);
+#if defined(CONFIG_DIAG_OVER_USB)
+		if (chk_apps_only()) {
+			driver->apps_rsp_buf[0] = 0x60;
+			driver->apps_rsp_buf[1] = 0x0;
+			driver->apps_rsp_buf[2] = 0x0;
+			diag_send_event_mask_update(driver->ch_cntl,
+							 diag_event_num_bytes);
+			diag_send_event_mask_update(driver->chqdsp_cntl,
+							 diag_event_num_bytes);
+			diag_send_event_mask_update(driver->ch_wcnss_cntl,
+							 diag_event_num_bytes);
+			ENCODE_RSP_AND_SEND(2);
 			return 0;
 		}
 #endif
 	}
+	/* Check for registered clients and forward packet to apropriate proc */
+	cmd_code = (int)(*(char *)buf);
+	temp++;
+	subsys_id = (int)(*(char *)temp);
+	temp++;
+	subsys_cmd_code = *(uint16_t *)temp;
+	temp += 2;
+	data_type = APPS_DATA;
+	/* Dont send any command other than mode reset */
+	if (chk_apps_master() && cmd_code == MODE_CMD) {
+		if (subsys_id != RESET_ID)
+			data_type = MODEM_DATA;
+	}
+
+	pr_debug("diag: %d %d %d", cmd_code, subsys_id, subsys_cmd_code);
+	for (i = 0; i < diag_max_reg; i++) {
+		entry = driver->table[i];
+		if (entry.process_id != NO_PROCESS) {
+			if (entry.cmd_code == cmd_code && entry.subsys_id ==
+				 subsys_id && entry.cmd_code_lo <=
+							 subsys_cmd_code &&
+				  entry.cmd_code_hi >= subsys_cmd_code) {
+				diag_send_data(entry, buf, len, data_type);
+				packet_type = 0;
+			} else if (entry.cmd_code == 255
+				  && cmd_code == 75) {
+				if (entry.subsys_id ==
+					subsys_id &&
+				   entry.cmd_code_lo <=
+					subsys_cmd_code &&
+					 entry.cmd_code_hi >=
+					subsys_cmd_code) {
+					diag_send_data(entry, buf, len,
+								 data_type);
+					packet_type = 0;
+				}
+			} else if (entry.cmd_code == 255 &&
+				  entry.subsys_id == 255) {
+				if (entry.cmd_code_lo <=
+						 cmd_code &&
+						 entry.
+						cmd_code_hi >= cmd_code) {
+					diag_send_data(entry, buf, len,
+								 data_type);
+					packet_type = 0;
+				}
+			}
+		}
+	}
 #if defined(CONFIG_DIAG_OVER_USB)
-	/* Check for Apps Only 8960 & get event mask request */
-	else if (!(driver->ch) && (chk_config_get_id() == AO8960_TOOLS_ID)
-			  && *buf == 0x81) {
+	/* Check for Apps Only & get event mask request */
+	if (!(driver->ch) && chk_apps_only() && *buf == 0x81) {
 		driver->apps_rsp_buf[0] = 0x81;
 		driver->apps_rsp_buf[1] = 0x0;
 		*(uint16_t *)(driver->apps_rsp_buf + 2) = 0x0;
@@ -529,8 +851,8 @@ static int diag_process_apps_pkt(unsigned char *buf, int len)
 		ENCODE_RSP_AND_SEND(6 + EVENT_LAST_ID/8);
 		return 0;
 	}
-	/* Get log ID range & Check for Apps Only 8960 */
-	else if (!(driver->ch) && (chk_config_get_id() == AO8960_TOOLS_ID)
+	/* Get log ID range & Check for Apps Only */
+	else if (!(driver->ch) && chk_apps_only()
 			  && (*buf == 0x73) && *(int *)(buf+4) == 1) {
 		driver->apps_rsp_buf[0] = 0x73;
 		*(int *)(driver->apps_rsp_buf + 4) = 0x1; /* operation ID */
@@ -555,7 +877,7 @@ static int diag_process_apps_pkt(unsigned char *buf, int len)
 		return 0;
 	}
 	/* Respond to Get SSID Range request message */
-	else if (!(driver->ch) && (chk_config_get_id() == AO8960_TOOLS_ID)
+	else if (!(driver->ch) && chk_apps_only()
 			 && (*buf == 0x7d) && (*(buf+1) == 0x1)) {
 		driver->apps_rsp_buf[0] = 0x7d;
 		driver->apps_rsp_buf[1] = 0x1;
@@ -600,11 +922,19 @@ static int diag_process_apps_pkt(unsigned char *buf, int len)
 		*(uint16_t *)(driver->apps_rsp_buf + 78) = MSG_SSID_17_LAST;
 		*(uint16_t *)(driver->apps_rsp_buf + 80) = MSG_SSID_18;
 		*(uint16_t *)(driver->apps_rsp_buf + 82) = MSG_SSID_18_LAST;
-		ENCODE_RSP_AND_SEND(83);
+		*(uint16_t *)(driver->apps_rsp_buf + 84) = MSG_SSID_19;
+		*(uint16_t *)(driver->apps_rsp_buf + 86) = MSG_SSID_19_LAST;
+		*(uint16_t *)(driver->apps_rsp_buf + 88) = MSG_SSID_20;
+		*(uint16_t *)(driver->apps_rsp_buf + 90) = MSG_SSID_20_LAST;
+		*(uint16_t *)(driver->apps_rsp_buf + 92) = MSG_SSID_21;
+		*(uint16_t *)(driver->apps_rsp_buf + 94) = MSG_SSID_21_LAST;
+		*(uint16_t *)(driver->apps_rsp_buf + 96) = MSG_SSID_22;
+		*(uint16_t *)(driver->apps_rsp_buf + 98) = MSG_SSID_22_LAST;
+		ENCODE_RSP_AND_SEND(99);
 		return 0;
 	}
-	/* Check for AO8960 Respond to Get Subsys Build mask */
-	else if (!(driver->ch) && (chk_config_get_id() == AO8960_TOOLS_ID)
+	/* Check for Apps Only Respond to Get Subsys Build mask */
+	else if (!(driver->ch) && chk_apps_only()
 			 && (*buf == 0x7d) && (*(buf+1) == 0x2)) {
 		ssid_first = *(uint16_t *)(buf + 2);
 		ssid_last = *(uint16_t *)(buf + 4);
@@ -695,12 +1025,28 @@ static int diag_process_apps_pkt(unsigned char *buf, int len)
 			for (i = 0; i < ssid_range; i += 4)
 				*(int *)(ptr + i) = msg_bld_masks_18[i/4];
 			break;
+		case MSG_SSID_19:
+			for (i = 0; i < ssid_range; i += 4)
+				*(int *)(ptr + i) = msg_bld_masks_19[i/4];
+			break;
+		case MSG_SSID_20:
+			for (i = 0; i < ssid_range; i += 4)
+				*(int *)(ptr + i) = msg_bld_masks_20[i/4];
+			break;
+		case MSG_SSID_21:
+			for (i = 0; i < ssid_range; i += 4)
+				*(int *)(ptr + i) = msg_bld_masks_21[i/4];
+			break;
+		case MSG_SSID_22:
+			for (i = 0; i < ssid_range; i += 4)
+				*(int *)(ptr + i) = msg_bld_masks_22[i/4];
+			break;
 		}
 		ENCODE_RSP_AND_SEND(8 + ssid_range - 1);
 		return 0;
 	}
 	/* Check for download command */
-	else if (cpu_is_msm8x60() && (*buf == 0x3A)) {
+	else if ((cpu_is_msm8x60() || chk_apps_master()) && (*buf == 0x3A)) {
 		/* send response back */
 		driver->apps_rsp_buf[0] = *buf;
 		ENCODE_RSP_AND_SEND(0);
@@ -708,14 +1054,12 @@ static int diag_process_apps_pkt(unsigned char *buf, int len)
 		/* call download API */
 		msm_set_restart_mode(RESTART_DLOAD);
 		printk(KERN_CRIT "diag: download mode set, Rebooting SoC..\n");
-		lock_kernel();
 		kernel_restart(NULL);
-		unlock_kernel();
 		/* Not required, represents that command isnt sent to modem */
 		return 0;
 	}
 	 /* Check for ID for NO MODEM present */
-	else if (!(driver->ch) && chk_config_get_id()) {
+	else if (!(driver->ch)) {
 		/* Respond to polling for Apps only DIAG */
 		if ((*buf == 0x4b) && (*(buf+1) == 0x32) &&
 							 (*(buf+2) == 0x03)) {
@@ -750,72 +1094,32 @@ static int diag_process_apps_pkt(unsigned char *buf, int len)
 		}
 	}
 #endif
-	/* Check for registered clients and forward packet to user-space */
-	cmd_code = (int)(*(char *)buf);
-	temp++;
-	subsys_id = (int)(*(char *)temp);
-	temp++;
-	subsys_cmd_code = *(uint16_t *)temp;
-	temp += 2;
-
-	for (i = 0; i < diag_max_registration; i++) {
-		if (driver->table[i].process_id != 0) {
-			if (driver->table[i].cmd_code ==
-				 cmd_code && driver->table[i].subsys_id ==
-				 subsys_id &&
-				driver->table[i].cmd_code_lo <=
-				 subsys_cmd_code &&
-				  driver->table[i].cmd_code_hi >=
-				 subsys_cmd_code){
-				driver->pkt_length = len;
-				diag_update_pkt_buffer(buf);
-				diag_update_sleeping_process(
-					driver->table[i].process_id);
-					return 0;
-				} /* end of if */
-			else if (driver->table[i].cmd_code == 255
-				  && cmd_code == 75) {
-				if (driver->table[i].subsys_id ==
-					subsys_id &&
-				   driver->table[i].cmd_code_lo <=
-					subsys_cmd_code &&
-					 driver->table[i].cmd_code_hi >=
-					subsys_cmd_code){
-					driver->pkt_length = len;
-					diag_update_pkt_buffer(buf);
-					diag_update_sleeping_process(
-						driver->table[i].
-						process_id);
-					return 0;
-				}
-			} /* end of else-if */
-			else if (driver->table[i].cmd_code == 255 &&
-				  driver->table[i].subsys_id == 255) {
-				if (driver->table[i].cmd_code_lo <=
-						 cmd_code &&
-						 driver->table[i].
-						cmd_code_hi >= cmd_code){
-					driver->pkt_length = len;
-					diag_update_pkt_buffer(buf);
-					diag_update_sleeping_process
-						(driver->table[i].
-						 process_id);
-					return 0;
-				}
-			} /* end of else-if */
-		} /* if(driver->table[i].process_id != 0) */
-	}  /* for (i = 0; i < diag_max_registration; i++) */
-	return packet_type;
+		return packet_type;
 }
+
+#ifdef CONFIG_DIAG_OVER_USB
+void diag_send_error_rsp(int index)
+{
+	int i;
+
+	if (index > 490) {
+		pr_err("diag: error response too huge, aborting\n");
+		return;
+	}
+	driver->apps_rsp_buf[0] = 0x13; /* error code 13 */
+	for (i = 0; i < index; i++)
+		driver->apps_rsp_buf[i+1] = *(driver->hdlc_buf+i);
+	ENCODE_RSP_AND_SEND(index - 3);
+}
+#else
+static inline void diag_send_error_rsp(int index) {}
+#endif
 
 void diag_process_hdlc(void *data, unsigned len)
 {
 	struct diag_hdlc_decode_type hdlc;
 	int ret, type = 0;
-#if defined(DIAG_DEBUG) || defined(CONFIG_DIAG_OVER_USB)
-	int i;
-	pr_debug("\n HDLC decode function, len of data  %d\n", len);
-#endif
+	pr_debug("diag: HDLC decode fn, len of data  %d\n", len);
 	hdlc.dest_ptr = driver->hdlc_buf;
 	hdlc.dest_size = USB_MAX_OUT_BUF;
 	hdlc.src_ptr = data;
@@ -837,16 +1141,15 @@ void diag_process_hdlc(void *data, unsigned len)
 					   DUMP_PREFIX_ADDRESS, data, len, 1);
 		driver->debug_flag = 0;
 	}
+	/* send error responses from APPS for Central Routing */
+	if (type == 1 && chk_apps_only()) {
+		diag_send_error_rsp(hdlc.dest_idx);
+		type = 0;
+	}
 	/* implies this packet is NOT meant for apps */
-	if (!(driver->ch) && type == 1 && chk_config_get_id()) {
-		if (chk_config_get_id() == AO8960_TOOLS_ID) {
-#if defined(CONFIG_DIAG_OVER_USB)
-			driver->apps_rsp_buf[0] = 0x13;
-			for (i = 0; i < hdlc.dest_idx; i++)
-				driver->apps_rsp_buf[i+1] =
-							 *(driver->hdlc_buf+i);
-			ENCODE_RSP_AND_SEND(hdlc.dest_idx - 3);
-#endif
+	if (!(driver->ch) && type == 1) {
+		if (chk_apps_only()) {
+			diag_send_error_rsp(hdlc.dest_idx);
 		} else { /* APQ 8060, Let Q6 respond */
 			if (driver->chqdsp)
 				smd_write(driver->chqdsp, driver->hdlc_buf,
@@ -856,7 +1159,7 @@ void diag_process_hdlc(void *data, unsigned len)
 	}
 
 #ifdef DIAG_DEBUG
-	printk(KERN_INFO "\n hdlc.dest_idx = %d", hdlc.dest_idx);
+	pr_debug("diag: hdlc.dest_idx = %d", hdlc.dest_idx);
 	for (i = 0; i < hdlc.dest_idx; i++)
 		printk(KERN_DEBUG "\t%x", *(((unsigned char *)
 							driver->hdlc_buf)+i));
@@ -875,7 +1178,8 @@ void diag_process_hdlc(void *data, unsigned len)
 }
 
 #ifdef CONFIG_DIAG_OVER_USB
-#define N_LEGACY_WRITE	(driver->poolsize + 5) /* 2+1 for modem ; 2 for q6 */
+/* 2+1 for modem ; 2 for LPASS ; 1 for WCNSS */
+#define N_LEGACY_WRITE	(driver->poolsize + 6)
 #define N_LEGACY_READ	1
 
 int diagfwd_connect(void)
@@ -893,14 +1197,20 @@ int diagfwd_connect(void)
 	driver->in_busy_2 = 0;
 	driver->in_busy_qdsp_1 = 0;
 	driver->in_busy_qdsp_2 = 0;
+	driver->in_busy_wcnss = 0;
 
 	/* Poll SMD channels to check for data*/
 	queue_work(driver->diag_wq, &(driver->diag_read_smd_work));
 	queue_work(driver->diag_wq, &(driver->diag_read_smd_qdsp_work));
+	queue_work(driver->diag_wq, &(driver->diag_read_smd_wcnss_work));
+	/* Poll SMD CNTL channels to check for data */
+	diag_smd_cntl_notify(NULL, SMD_EVENT_DATA);
+	diag_smd_qdsp_cntl_notify(NULL, SMD_EVENT_DATA);
+	diag_smd_wcnss_cntl_notify(NULL, SMD_EVENT_DATA);
 	/* Poll USB channel to check for data*/
 	queue_work(driver->diag_wq, &(driver->diag_read_work));
 #ifdef CONFIG_DIAG_SDIO_PIPE
-	if (machine_is_msm8x60_charm_surf() || machine_is_msm8x60_charm_ffa()) {
+	if (machine_is_msm8x60_fusion() || machine_is_msm8x60_fusn_ffa()) {
 		if (driver->mdm_ch && !IS_ERR(driver->mdm_ch))
 			diagfwd_connect_sdio();
 		else
@@ -914,14 +1224,17 @@ int diagfwd_disconnect(void)
 {
 	printk(KERN_DEBUG "diag: USB disconnected\n");
 	driver->usb_connected = 0;
-	driver->in_busy_1 = 1;
-	driver->in_busy_2 = 1;
-	driver->in_busy_qdsp_1 = 1;
-	driver->in_busy_qdsp_2 = 1;
 	driver->debug_flag = 1;
 	usb_diag_free_req(driver->legacy_ch);
+	if (driver->logging_mode == USB_MODE) {
+		driver->in_busy_1 = 1;
+		driver->in_busy_2 = 1;
+		driver->in_busy_qdsp_1 = 1;
+		driver->in_busy_qdsp_2 = 1;
+		driver->in_busy_wcnss = 1;
+	}
 #ifdef CONFIG_DIAG_SDIO_PIPE
-	if (machine_is_msm8x60_charm_surf() || machine_is_msm8x60_charm_ffa())
+	if (machine_is_msm8x60_fusion() || machine_is_msm8x60_fusn_ffa())
 		if (driver->mdm_ch && !IS_ERR(driver->mdm_ch))
 			diagfwd_disconnect_sdio();
 #endif
@@ -950,11 +1263,16 @@ int diagfwd_write_complete(struct diag_request *diag_write_ptr)
 		driver->in_busy_qdsp_2 = 0;
 		APPEND_DEBUG('P');
 		queue_work(driver->diag_wq, &(driver->diag_read_smd_qdsp_work));
+	} else if (buf == (void *)driver->buf_in_wcnss) {
+		driver->in_busy_wcnss = 0;
+		APPEND_DEBUG('R');
+		queue_work(driver->diag_wq,
+			 &(driver->diag_read_smd_wcnss_work));
 	}
 #ifdef CONFIG_DIAG_SDIO_PIPE
 	else if (buf == (void *)driver->buf_in_sdio)
-		if (machine_is_msm8x60_charm_surf() ||
-					 machine_is_msm8x60_charm_ffa())
+		if (machine_is_msm8x60_fusion() ||
+			 machine_is_msm8x60_fusn_ffa())
 			diagfwd_write_complete_sdio();
 		else
 			pr_err("diag: Incorrect buffer pointer while WRITE");
@@ -995,8 +1313,8 @@ int diagfwd_read_complete(struct diag_request *diag_read_ptr)
 	}
 #ifdef CONFIG_DIAG_SDIO_PIPE
 	else if (buf == (void *)driver->usb_buf_mdm_out) {
-		if (machine_is_msm8x60_charm_surf() ||
-					 machine_is_msm8x60_charm_ffa()) {
+		if (machine_is_msm8x60_fusion() ||
+				 machine_is_msm8x60_fusn_ffa()) {
 			driver->read_len_mdm = diag_read_ptr->actual;
 			diagfwd_read_complete_sdio();
 		} else
@@ -1052,30 +1370,68 @@ void diag_usb_legacy_notifier(void *priv, unsigned event,
 
 static void diag_smd_notify(void *ctxt, unsigned event)
 {
+	if (event == SMD_EVENT_CLOSE) {
+		pr_info("diag: clean modem registration\n");
+		diag_clear_reg(MODEM_PROC);
+		driver->ch = 0;
+		return;
+	} else if (event == SMD_EVENT_OPEN) {
+		driver->ch = ch_temp;
+	}
 	queue_work(driver->diag_wq, &(driver->diag_read_smd_work));
 }
 
 #if defined(CONFIG_MSM_N_WAY_SMD)
 static void diag_smd_qdsp_notify(void *ctxt, unsigned event)
 {
+	if (event == SMD_EVENT_CLOSE) {
+		pr_info("diag: clean lpass registration\n");
+		diag_clear_reg(QDSP_PROC);
+		driver->chqdsp = 0;
+		return;
+	} else if (event == SMD_EVENT_OPEN) {
+		driver->chqdsp = chqdsp_temp;
+	}
 	queue_work(driver->diag_wq, &(driver->diag_read_smd_qdsp_work));
 }
 #endif
+
+static void diag_smd_wcnss_notify(void *ctxt, unsigned event)
+{
+	if (event == SMD_EVENT_CLOSE) {
+		pr_info("diag: clean wcnss registration\n");
+		diag_clear_reg(WCNSS_PROC);
+		driver->ch_wcnss = 0;
+		return;
+	} else if (event == SMD_EVENT_OPEN) {
+		driver->ch_wcnss = ch_wcnss_temp;
+	}
+	queue_work(driver->diag_wq, &(driver->diag_read_smd_wcnss_work));
+}
 
 static int diag_smd_probe(struct platform_device *pdev)
 {
 	int r = 0;
 
-	if (pdev->id == 0)
+	if (pdev->id == SMD_APPS_MODEM) {
 		r = smd_open("DIAG", &driver->ch, driver, diag_smd_notify);
+		ch_temp = driver->ch;
+	}
 #if defined(CONFIG_MSM_N_WAY_SMD)
-	if (pdev->id == 1)
+	if (pdev->id == SMD_APPS_QDSP) {
 		r = smd_named_open_on_edge("DIAG", SMD_APPS_QDSP
 			, &driver->chqdsp, driver, diag_smd_qdsp_notify);
+		chqdsp_temp = driver->chqdsp;
+	}
 #endif
+	if (pdev->id == SMD_APPS_WCNSS) {
+		r = smd_named_open_on_edge("APPS_RIVA_DATA", SMD_APPS_WCNSS
+			, &driver->ch_wcnss, driver, diag_smd_wcnss_notify);
+		ch_wcnss_temp = driver->ch_wcnss;
+	}
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
-	pr_debug("diag: opened SMD port ; r = %d\n", r);
+	pr_debug("diag: open SMD port, Id = %d, r = %d\n", pdev->id, r);
 
 	return 0;
 }
@@ -1107,26 +1463,82 @@ static struct platform_driver msm_smd_ch1_driver = {
 		   },
 };
 
+static struct platform_driver diag_smd_lite_driver = {
+
+	.probe = diag_smd_probe,
+	.driver = {
+		   .name = "APPS_RIVA_DATA",
+		   .owner = THIS_MODULE,
+		   .pm   = &diagfwd_dev_pm_ops,
+		   },
+};
+
 void diagfwd_init(void)
 {
 	diag_debug_buf_idx = 0;
 	driver->read_len_legacy = 0;
-	if (driver->buf_in_1 == NULL)
+
+	if (driver->event_mask == NULL) {
+		driver->event_mask = kzalloc(sizeof(
+			struct diag_ctrl_event_mask), GFP_KERNEL);
+		if (driver->event_mask == NULL)
+			goto err;
+	}
+	if (driver->msg_mask == NULL) {
+		driver->msg_mask = kzalloc(sizeof(
+			struct diag_ctrl_msg_mask), GFP_KERNEL);
+		if (driver->msg_mask == NULL)
+			goto err;
+	}
+	if (driver->log_mask == NULL) {
+		driver->log_mask = kzalloc(sizeof(
+			struct diag_ctrl_log_mask), GFP_KERNEL);
+		if (driver->log_mask == NULL)
+			goto err;
+	}
+	if (driver->buf_in_1 == NULL) {
 		driver->buf_in_1 = kzalloc(IN_BUF_SIZE, GFP_KERNEL);
 		if (driver->buf_in_1 == NULL)
 			goto err;
-	if (driver->buf_in_2 == NULL)
+	}
+	if (driver->buf_in_2 == NULL) {
 		driver->buf_in_2 = kzalloc(IN_BUF_SIZE, GFP_KERNEL);
 		if (driver->buf_in_2 == NULL)
 			goto err;
-	if (driver->buf_in_qdsp_1 == NULL)
+	}
+	if (driver->buf_in_qdsp_1 == NULL) {
 		driver->buf_in_qdsp_1 = kzalloc(IN_BUF_SIZE, GFP_KERNEL);
 		if (driver->buf_in_qdsp_1 == NULL)
 			goto err;
-	if (driver->buf_in_qdsp_2 == NULL)
+	}
+	if (driver->buf_in_qdsp_2 == NULL) {
 		driver->buf_in_qdsp_2 = kzalloc(IN_BUF_SIZE, GFP_KERNEL);
 		if (driver->buf_in_qdsp_2 == NULL)
 			goto err;
+	}
+	if (driver->buf_in_wcnss == NULL) {
+		driver->buf_in_wcnss = kzalloc(IN_BUF_SIZE, GFP_KERNEL);
+		if (driver->buf_in_wcnss == NULL)
+			goto err;
+	}
+	if (driver->buf_msg_mask_update == NULL) {
+		driver->buf_msg_mask_update = kzalloc(APPS_BUF_SIZE,
+								 GFP_KERNEL);
+		if (driver->buf_msg_mask_update == NULL)
+			goto err;
+	}
+	if (driver->buf_log_mask_update == NULL) {
+		driver->buf_log_mask_update = kzalloc(APPS_BUF_SIZE,
+								 GFP_KERNEL);
+		if (driver->buf_log_mask_update == NULL)
+			goto err;
+	}
+	if (driver->buf_event_mask_update == NULL) {
+		driver->buf_event_mask_update = kzalloc(APPS_BUF_SIZE,
+								 GFP_KERNEL);
+		if (driver->buf_event_mask_update == NULL)
+			goto err;
+	}
 	if (driver->usb_buf_out  == NULL &&
 	     (driver->usb_buf_out = kzalloc(USB_MAX_OUT_BUF,
 					 GFP_KERNEL)) == NULL)
@@ -1134,6 +1546,10 @@ void diagfwd_init(void)
 	if (driver->hdlc_buf == NULL
 	    && (driver->hdlc_buf = kzalloc(HDLC_MAX, GFP_KERNEL)) == NULL)
 		goto err;
+	if (driver->user_space_data == NULL)
+		driver->user_space_data = kzalloc(USER_SPACE_DATA, GFP_KERNEL);
+		if (driver->user_space_data == NULL)
+			goto err;
 	if (driver->msg_masks == NULL
 	    && (driver->msg_masks = kzalloc(MSG_MASK_SIZE,
 					     GFP_KERNEL)) == NULL)
@@ -1141,7 +1557,7 @@ void diagfwd_init(void)
 	if (driver->log_masks == NULL &&
 	    (driver->log_masks = kzalloc(LOG_MASK_SIZE, GFP_KERNEL)) == NULL)
 		goto err;
-	driver->log_masks_length = 8*MAX_EQUIP_ID;
+	driver->log_masks_length = (sizeof(struct mask_info))*MAX_EQUIP_ID;
 	if (driver->event_masks == NULL &&
 	    (driver->event_masks = kzalloc(EVENT_MASK_SIZE,
 					    GFP_KERNEL)) == NULL)
@@ -1161,67 +1577,93 @@ void diagfwd_init(void)
 							, GFP_KERNEL)) == NULL)
 		goto err;
 	if (driver->table == NULL &&
-	     (driver->table = kzalloc(diag_max_registration*
+	     (driver->table = kzalloc(diag_max_reg*
 		      sizeof(struct diag_master_table),
 		       GFP_KERNEL)) == NULL)
 		goto err;
-	if (driver->write_ptr_1 == NULL)
+	if (driver->write_ptr_1 == NULL) {
 		driver->write_ptr_1 = kzalloc(
 			sizeof(struct diag_request), GFP_KERNEL);
 		if (driver->write_ptr_1 == NULL)
 			goto err;
-	if (driver->write_ptr_2 == NULL)
+	}
+	if (driver->write_ptr_2 == NULL) {
 		driver->write_ptr_2 = kzalloc(
 			sizeof(struct diag_request), GFP_KERNEL);
 		if (driver->write_ptr_2 == NULL)
 			goto err;
-	if (driver->write_ptr_qdsp_1 == NULL)
+	}
+	if (driver->write_ptr_qdsp_1 == NULL) {
 		driver->write_ptr_qdsp_1 = kzalloc(
 			sizeof(struct diag_request), GFP_KERNEL);
 		if (driver->write_ptr_qdsp_1 == NULL)
 			goto err;
-	if (driver->write_ptr_qdsp_2 == NULL)
+	}
+	if (driver->write_ptr_qdsp_2 == NULL) {
 		driver->write_ptr_qdsp_2 = kzalloc(
 			sizeof(struct diag_request), GFP_KERNEL);
 		if (driver->write_ptr_qdsp_2 == NULL)
 			goto err;
-	if (driver->usb_read_ptr == NULL)
+	}
+	if (driver->write_ptr_wcnss == NULL) {
+		driver->write_ptr_wcnss = kzalloc(
+			sizeof(struct diag_request), GFP_KERNEL);
+		if (driver->write_ptr_wcnss == NULL)
+			goto err;
+	}
+	if (driver->usb_read_ptr == NULL) {
 		driver->usb_read_ptr = kzalloc(
 			sizeof(struct diag_request), GFP_KERNEL);
 		if (driver->usb_read_ptr == NULL)
 			goto err;
+	}
 	if (driver->pkt_buf == NULL &&
 	     (driver->pkt_buf = kzalloc(PKT_SIZE,
 			 GFP_KERNEL)) == NULL)
 		goto err;
-	if (driver->apps_rsp_buf == NULL)
-			driver->apps_rsp_buf = kzalloc(500, GFP_KERNEL);
+	if (driver->apps_rsp_buf == NULL) {
+		driver->apps_rsp_buf = kzalloc(APPS_BUF_SIZE, GFP_KERNEL);
 		if (driver->apps_rsp_buf == NULL)
 			goto err;
+	}
 	driver->diag_wq = create_singlethread_workqueue("diag_wq");
 #ifdef CONFIG_DIAG_OVER_USB
 	INIT_WORK(&(driver->diag_proc_hdlc_work), diag_process_hdlc_fn);
 	INIT_WORK(&(driver->diag_read_work), diag_read_work_fn);
+	INIT_WORK(&(driver->diag_msg_mask_update_work),
+						 diag_msg_mask_update_fn);
+	INIT_WORK(&(driver->diag_log_mask_update_work),
+						 diag_log_mask_update_fn);
+	INIT_WORK(&(driver->diag_modem_mask_update_work),
+						 diag_modem_mask_update_fn);
+	INIT_WORK(&(driver->diag_qdsp_mask_update_work),
+						 diag_qdsp_mask_update_fn);
+	INIT_WORK(&(driver->diag_wcnss_mask_update_work),
+						 diag_wcnss_mask_update_fn);
 	driver->legacy_ch = usb_diag_open(DIAG_LEGACY, driver,
 			diag_usb_legacy_notifier);
 	if (IS_ERR(driver->legacy_ch)) {
 		printk(KERN_ERR "Unable to open USB diag legacy channel\n");
 		goto err;
 	}
-#ifdef CONFIG_DIAG_SDIO_PIPE
-	if (machine_is_msm8x60_charm_surf() || machine_is_msm8x60_charm_ffa())
-		diagfwd_sdio_init();
-#endif
 #endif
 	platform_driver_register(&msm_smd_ch1_driver);
+	platform_driver_register(&diag_smd_lite_driver);
 
 	return;
 err:
-		printk(KERN_INFO "\n Could not initialize diag buffers\n");
+		pr_err("diag: Could not initialize diag buffers");
+		kfree(driver->event_mask);
+		kfree(driver->log_mask);
+		kfree(driver->msg_mask);
 		kfree(driver->buf_in_1);
 		kfree(driver->buf_in_2);
 		kfree(driver->buf_in_qdsp_1);
 		kfree(driver->buf_in_qdsp_2);
+		kfree(driver->buf_in_wcnss);
+		kfree(driver->buf_msg_mask_update);
+		kfree(driver->buf_log_mask_update);
+		kfree(driver->buf_event_mask_update);
 		kfree(driver->usb_buf_out);
 		kfree(driver->hdlc_buf);
 		kfree(driver->msg_masks);
@@ -1236,8 +1678,10 @@ err:
 		kfree(driver->write_ptr_2);
 		kfree(driver->write_ptr_qdsp_1);
 		kfree(driver->write_ptr_qdsp_2);
+		kfree(driver->write_ptr_wcnss);
 		kfree(driver->usb_read_ptr);
 		kfree(driver->apps_rsp_buf);
+		kfree(driver->user_space_data);
 		if (driver->diag_wq)
 			destroy_workqueue(driver->diag_wq);
 }
@@ -1246,21 +1690,28 @@ void diagfwd_exit(void)
 {
 	smd_close(driver->ch);
 	smd_close(driver->chqdsp);
+	smd_close(driver->ch_wcnss);
 	driver->ch = 0;		/* SMD can make this NULL */
 	driver->chqdsp = 0;
+	driver->ch_wcnss = 0;
 #ifdef CONFIG_DIAG_OVER_USB
 	if (driver->usb_connected)
 		usb_diag_free_req(driver->legacy_ch);
-#endif
-	platform_driver_unregister(&msm_smd_ch1_driver);
-#ifdef CONFIG_DIAG_OVER_USB
 	usb_diag_close(driver->legacy_ch);
 #endif
-
+	platform_driver_unregister(&msm_smd_ch1_driver);
+	platform_driver_unregister(&diag_smd_lite_driver);
+	kfree(driver->event_mask);
+	kfree(driver->log_mask);
+	kfree(driver->msg_mask);
 	kfree(driver->buf_in_1);
 	kfree(driver->buf_in_2);
 	kfree(driver->buf_in_qdsp_1);
 	kfree(driver->buf_in_qdsp_2);
+	kfree(driver->buf_in_wcnss);
+	kfree(driver->buf_msg_mask_update);
+	kfree(driver->buf_log_mask_update);
+	kfree(driver->buf_event_mask_update);
 	kfree(driver->usb_buf_out);
 	kfree(driver->hdlc_buf);
 	kfree(driver->msg_masks);
@@ -1275,7 +1726,9 @@ void diagfwd_exit(void)
 	kfree(driver->write_ptr_2);
 	kfree(driver->write_ptr_qdsp_1);
 	kfree(driver->write_ptr_qdsp_2);
+	kfree(driver->write_ptr_wcnss);
 	kfree(driver->usb_read_ptr);
 	kfree(driver->apps_rsp_buf);
+	kfree(driver->user_space_data);
 	destroy_workqueue(driver->diag_wq);
 }

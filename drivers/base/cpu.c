@@ -11,7 +11,6 @@
 #include <linux/device.h>
 #include <linux/node.h>
 #include <linux/gfp.h>
-#include <linux/cpufreq.h>
 
 #include "base.h"
 
@@ -24,7 +23,6 @@ struct sysdev_class cpu_sysdev_class = {
 EXPORT_SYMBOL(cpu_sysdev_class);
 
 static DEFINE_PER_CPU(struct sys_device *, cpu_sys_devices);
-extern bool lmf_inputmethod_state;
 
 #ifdef CONFIG_HOTPLUG_CPU
 static ssize_t show_online(struct sys_device *dev, struct sysdev_attribute *attr,
@@ -57,22 +55,6 @@ static ssize_t __ref store_online(struct sys_device *dev, struct sysdev_attribut
 		ret = -EINVAL;
 	}
 	cpu_hotplug_driver_unlock();
-
-#if defined (CONFIG_KOR_MODEL_SHV_E120S) || defined (CONFIG_KOR_MODEL_SHV_E120K) || defined (CONFIG_KOR_MODEL_SHV_E120L) \
-|| defined (CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L)  \
-|| defined (CONFIG_USA_MODEL_SGH_I757) || defined (CONFIG_USA_MODEL_SGH_I577) || defined (CONFIG_USA_MODEL_SGH_T769) || defined(CONFIG_CAN_MODEL_SGH_I577R) || defined (CONFIG_CAN_MODEL_SGH_I757M)
-		if (!ret && cpu->sysdev.id == NON_BOOT_CPU)
-		{
-			if (buf[0] == '0') // cpu1 offline
-			{
-				cpufreq_set_limit(UNI_PRO_START);
-			}
-			else if (buf[0] == '1') // cpu1 online
-			{
-				cpufreq_set_limit(UNI_PRO_STOP);
-			}
-		}
-#endif
 
 	if (ret >= 0)
 		ret = count;

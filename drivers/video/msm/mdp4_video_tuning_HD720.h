@@ -22,6 +22,13 @@
 #define SHARPNESS_VIDEO 0
 #define SHARPNESS_BYPASS 0
 
+#define DMB_LUT		DMB_LUT_TUNE
+#define VIDEO_LUT	VIDEO_LUT_TUNE
+#define UI_LUT		BYPASS_LUT
+#define CAMERA_LUT	BYPASS_LUT
+#define NAVI_LUT		BYPASS_LUT
+#define GALLERY_LUT BYPASS_LUT
+
 static unsigned int BYPASS_LUT[] =
 {
 0x00, 0x00, 0x00,
@@ -285,7 +292,7 @@ static unsigned int BYPASS_LUT[] =
 #if 1 
 // kyNam_110904_ SM2-LCD Tunning
 #define SHARPNESS_DMB 52
-static unsigned int DMB_LUT[] =
+static unsigned int DMB_LUT_TUNE[] =
 {
 0x00, 0x00, 0x00,
 0x01, 0x01, 0x01,
@@ -808,7 +815,7 @@ static unsigned int DMB_LUT[] =
 };
 #endif 
 
-static unsigned int VIDEO_LUT[] =
+static unsigned int VIDEO_LUT_TUNE[] =
 {
 0x00, 0x00, 0x00,
 0x01, 0x01, 0x01,

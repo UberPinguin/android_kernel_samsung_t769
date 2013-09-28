@@ -253,6 +253,24 @@ static inline void sec_debug_mdp_enable(int enable)
 
 #endif
 
+#ifdef CONFIG_SEC_DEBUG_POWERCOLLAPSE_LOG
+#define POWERCOLLAPSE_LOG_MAX 1024
+
+struct powercollapse_log {
+	unsigned long long time;
+	unsigned int value1;
+	unsigned int value2;
+};
+
+extern void sec_debug_powercollapse_log(unsigned int value1, unsigned int value2);
+
+#else
+static inline void sec_debug_powercollapse_log(unsigned int value1, unsigned int value2)
+{
+}
+
+#endif
+
 #ifdef CONFIG_SEC_DEBUG_SDIO_LOG
 #define SDIO_LOG_MAX 1024
 
@@ -298,5 +316,7 @@ extern void sec_debug_reg_write(unsigned long addr, unsigned long data, int size
 #define KERNEL_SEC_DEBUG_LEVEL_HIGH	(0x47494844)
 extern bool kernel_sec_set_debug_level(int level);
 extern int kernel_sec_get_debug_level(void);
+
+#define LOCAL_CONFIG_PRINT_EXTRA_INFO
 
 #endif /* SEC_DEBUG_H */

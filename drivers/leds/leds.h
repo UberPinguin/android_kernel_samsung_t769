@@ -31,20 +31,25 @@ struct deferred_brightness_change {
 };
 
 #endif
-
 static inline void led_set_brightness(struct led_classdev *led_cdev,
 					enum led_brightness value)
 {
 	if (value > led_cdev->max_brightness)
 		value = led_cdev->max_brightness;
 	led_cdev->brightness = value;
+	
+#ifdef CONFIG_TARGET_SERIES_P8LTE
 	if (!(led_cdev->flags & LED_SUSPENDED)) {
-// comment out for fix the problem LCD backlight set late on wakeup 
-//#ifdef CONFIG_HAS_EARLYSUSPEND
-//		if (queue_brightness_change(led_cdev, value) != 0)         
-//#endif
+#ifdef CONFIG_HAS_EARLYSUSPEND
+		if (queue_brightness_change(led_cdev, value) != 0)
+#endif
 			led_cdev->brightness_set(led_cdev, value);
 	}
+
+#else
+	if (!(led_cdev->flags & LED_SUSPENDED))
+		led_cdev->brightness_set(led_cdev, value);
+#endif
 }
 
 static inline int led_get_brightness(struct led_classdev *led_cdev)
@@ -60,10 +65,17 @@ void led_trigger_set_default(struct led_classdev *led_cdev);
 void led_trigger_set(struct led_classdev *led_cdev,
 			struct led_trigger *trigger);
 void led_trigger_remove(struct led_classdev *led_cdev);
+
+static inline void *led_get_trigger_data(struct led_classdev *led_cdev)
+{
+	return led_cdev->trigger_data;
+}
+
 #else
 #define led_trigger_set_default(x) do {} while (0)
 #define led_trigger_set(x, y) do {} while (0)
 #define led_trigger_remove(x) do {} while (0)
+#define led_get_trigger_data(x) (NULL)
 #endif
 
 ssize_t led_trigger_store(struct device *dev, struct device_attribute *attr,

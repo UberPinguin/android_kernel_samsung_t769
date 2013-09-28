@@ -39,9 +39,12 @@
 #include "mipi_dsi.h"
 
 #define DET_CHECK_TIME_MS	50		
-//#define WAKE_LOCK_TIME		(HZ /2)	/* 0.5 sec */
+#if defined (CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I757M)  //except celoxhd
 #define WAKE_LOCK_TIME		(6 * HZ)	/* 0.5 sec */
 
+#else
+#define WAKE_LOCK_TIME		(HZ /2)	/* 0.5 sec */
+#endif
 #if 1 // def LCDC_DEBUG
 #define DPRINT(x...)	printk("[Mipi_LCD_ESD] " x)
 #else
@@ -55,6 +58,7 @@ struct sec_esd_info {
 	struct work_struct  det_work;
 	int esd_cnt;
 	boolean esd_ignore;
+	boolean esd_force_ignore;
 };
 static struct sec_esd_info *p_sec_esd_info = NULL;
 
@@ -80,8 +84,21 @@ void set_lcd_esd_ignore( boolean src )
 	p_sec_esd_info->esd_ignore = src;
 //	DPRINT( "%s : %d\n", __func__, p_sec_esd_info->esd_ignore );
 }	
+void set_lcd_esd_forced_ignore( boolean src )
+{
+	use_vsyncLPmode = FALSE;
+	
+	if( p_sec_esd_info == NULL ) {
+		DPRINT( "%s : not initialized\n", __func__ );
+		return;
+	}
 
-#ifdef CONFIG_FB_MSM_MIPI_S6E8AA0_WXGA_Q1_PANEL
+	p_sec_esd_info->esd_force_ignore = src;
+	DPRINT( "%s : %d\n", __func__, p_sec_esd_info->esd_force_ignore );
+}	
+
+
+#if defined(CONFIG_FB_MSM_MIPI_S6E8AA0_WXGA_Q1_PANEL) || defined(CONFIG_FB_MSM_MIPI_S6E8AB0_WXGA_PANEL)
 
 void lcd_esd_seq( struct sec_esd_info *pSrc )
 {
@@ -159,10 +176,8 @@ void lcd_esd_seq( struct sec_esd_info *pSrc )
 	lcd_LP11_signal();
 	use_vsyncLPmode = TRUE;
 	TSP_ESD_seq();
-
 #if !defined (CONFIG_USA_MODEL_SGH_I757) && !defined(CONFIG_CAN_MODEL_SGH_I757M)  //except celoxhd
-
-	msleep(500);
+	msleep(1000);
 	
 	lcd_LP11_signal();
 	use_vsyncLPmode = TRUE;
@@ -200,11 +215,12 @@ static void sec_esd_work_func(struct work_struct *work)
 		container_of(work, struct sec_esd_info, det_work);
 //	struct sec_esd_platform_data *pdata = hi->pdata;
 
-//	DPRINT( "%s\n", __func__);
+	DPRINT( "%s\n", __func__);
 
 	hi->esd_cnt++;
 	if( hi->esd_cnt <= ESD_EXCEPT_CNT ) DPRINT( "%s : %d ignore Cnt(%d)\n", __func__, hi->esd_cnt, ESD_EXCEPT_CNT );
 	else if(hi->esd_ignore) DPRINT( "%s : %d ignore FLAG\n", __func__, hi->esd_cnt );
+	else if(hi->esd_force_ignore) DPRINT( "%s : %d esd_force_ignore FLAG\n", __func__, hi->esd_force_ignore );
 	else 
 	{
 	/* threaded irq can sleep */
@@ -218,7 +234,7 @@ static void sec_esd_work_func(struct work_struct *work)
 	return;
 }
 
-#if defined (CONFIG_KOR_MODEL_SHV_E160S)
+#if defined (CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_JPN_MODEL_SC_05D)
 extern unsigned int get_hw_rev();
 #endif
 
@@ -227,7 +243,7 @@ static int sec_esd_probe(struct platform_device *pdev)
 	struct sec_esd_info *hi;
 	struct sec_esd_platform_data *pdata = pdev->dev.platform_data;
 	int ret;
-#if defined(CONFIG_KOR_MODEL_SHV_E160S)
+#if defined(CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_JPN_MODEL_SC_05D)
 	if( get_hw_rev() < 0x05 ){
 		DPRINT( "%s : Esd driver END (HW REV < 05)\n", __func__);
 		return 0;

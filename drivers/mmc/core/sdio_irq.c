@@ -45,7 +45,7 @@ static int process_sdio_pending_irqs(struct mmc_card *card)
 			struct sdio_func *func = card->sdio_func[i - 1];
 			if (!func) {
 				printk(KERN_WARNING "%s: pending IRQ for "
-					"non-existant function\n",
+					"non-existent function\n",
 					mmc_card_id(card));
 				ret = -EINVAL;
 			} else if (func->irq_handler) {
@@ -134,15 +134,21 @@ static int sdio_irq_thread(void *_host)
 		}
 
 		set_current_state(TASK_INTERRUPTIBLE);
-		if (host->caps & MMC_CAP_SDIO_IRQ)
+		if (host->caps & MMC_CAP_SDIO_IRQ) {
+			mmc_host_clk_hold(host);
 			host->ops->enable_sdio_irq(host, 1);
+			mmc_host_clk_release(host);
+		}
 		if (!kthread_should_stop())
 			schedule_timeout(period);
 		set_current_state(TASK_RUNNING);
 	} while (!kthread_should_stop());
 
-	if (host->caps & MMC_CAP_SDIO_IRQ)
+	if (host->caps & MMC_CAP_SDIO_IRQ) {
+		mmc_host_clk_hold(host);
 		host->ops->enable_sdio_irq(host, 0);
+		mmc_host_clk_release(host);
+	}
 
 	pr_debug("%s: IRQ thread exiting with code %d\n",
 		 mmc_hostname(host), ret);
@@ -201,8 +207,8 @@ int sdio_claim_irq(struct sdio_func *func, sdio_irq_handler_t *handler)
 	int ret;
 	unsigned char reg;
 
-	if((!func)||(!func->card))
-		return -ENODEV;
+	BUG_ON(!func);
+	BUG_ON(!func->card);
 
 	pr_debug("SDIO: Enabling IRQ for %s...\n", sdio_func_id(func));
 
@@ -243,8 +249,8 @@ int sdio_release_irq(struct sdio_func *func)
 	int ret;
 	unsigned char reg;
 
-	if((!func)||(!func->card))
-		return -ENODEV;
+	BUG_ON(!func);
+	BUG_ON(!func->card);
 
 	pr_debug("SDIO: Disabling IRQ for %s...\n", sdio_func_id(func));
 

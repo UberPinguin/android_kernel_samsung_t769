@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2009 Google, Inc.
  * Copyright (C) 2009 HTC Corporation
- * Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -27,15 +27,9 @@
 #include <asm/atomic.h>
 #include <mach/debug_mm.h>
 #include <mach/qdsp6v2/audio_dev_ctl.h>
-#include <mach/qdsp6v2/apr_audio.h>
-#include <mach/qdsp6v2/q6asm.h>
-#include <linux/wakelock.h> //pcmin_lock
-
-#if defined (CONFIG_Q1_KOR_AUDIO)
-#define pr_err printk
-#define pr_info printk
-#define pr_dbg printk
-#endif
+#include <sound/q6asm.h>
+#include <sound/apr_audio.h>
+#include <linux/wakelock.h>
 
 #define MAX_BUF 4
 #define BUFSZ (480 * 8)
@@ -60,8 +54,6 @@ struct pcm {
 	atomic_t in_enabled;
 	atomic_t in_opened;
 	atomic_t in_stopped;
-
-	//pcmin_lock
 	struct wake_lock wakelock;
 	struct wake_lock idlelock;
 };
@@ -80,13 +72,14 @@ void pcm_in_cb(uint32_t opcode, uint32_t token,
 	case ASM_DATA_EVENT_READ_DONE:
 		pcm_in_get_dsp_buffers(pcm, token, payload);
 		break;
+	case RESET_EVENTS:
+		reset_device();
+		break;
 	default:
 		break;
 	}
 	spin_unlock_irqrestore(&pcm->dsp_lock, flags);
 }
-
-//pcmin_lock
 static void pcm_in_prevent_sleep(struct pcm *audio)
 {
 	pr_debug("%s:\n", __func__);
@@ -100,7 +93,6 @@ static void pcm_in_allow_sleep(struct pcm *audio)
 	wake_unlock(&audio->wakelock);
 	wake_unlock(&audio->idlelock);
 }
-
 
 static void pcm_in_get_dsp_buffers(struct pcm *pcm,
 				uint32_t token, uint32_t *payload)
@@ -196,9 +188,7 @@ static long pcm_in_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			rc = -EFAULT;
 			break;
 		}
-
-		pcm_in_prevent_sleep(pcm); //pcmin_lock
-
+		pcm_in_prevent_sleep(pcm);
 		atomic_set(&pcm->in_enabled, 1);
 
 		while (cnt++ < pcm->buffer_count)
@@ -327,7 +317,7 @@ static int pcm_in_open(struct inode *inode, struct file *file)
 {
 	struct pcm *pcm;
 	int rc = 0;
-	char name[24]; //pcmin_lock
+	char name[24];
 
 	pcm = kzalloc(sizeof(struct pcm), GFP_KERNEL);
 	if (!pcm)
@@ -360,8 +350,6 @@ static int pcm_in_open(struct inode *inode, struct file *file)
 	atomic_set(&pcm->in_enabled, 0);
 	atomic_set(&pcm->in_count, 0);
 	atomic_set(&pcm->in_opened, 1);
-
-//pcmin_lock
 	snprintf(name, sizeof name, "pcm_in_%x", pcm->ac->session);
 	wake_lock_init(&pcm->wakelock, WAKE_LOCK_SUSPEND, name);
 	snprintf(name, sizeof name, "pcm_in_idle_%x", pcm->ac->session);
@@ -454,6 +442,8 @@ static int pcm_in_release(struct inode *inode, struct file *file)
 	int rc = 0;
 	struct pcm *pcm = file->private_data;
 
+	pr_info("[%s:%s] release session id[%d]\n", __MM_FILE__,
+		__func__, pcm->ac->session);
 	mutex_lock(&pcm->lock);
 
 	if ((pcm->rec_mode != VOC_REC_NONE) && atomic_read(&pcm->in_enabled)) {
@@ -468,19 +458,12 @@ static int pcm_in_release(struct inode *inode, struct file *file)
 	mutex_unlock(&pcm->lock);
 
 	rc = pcm_in_disable(pcm);
-
-	pr_info("[%s:%s] release session id[%d]\n", __MM_FILE__,
-				__func__, pcm->ac->session);
-
 	 msm_clear_session_id(pcm->ac->session);
 	q6asm_audio_client_free(pcm->ac);
-
-	//pcmin_lock
 	pcm_in_allow_sleep(pcm);
 	wake_lock_destroy(&pcm->wakelock);
 	wake_lock_destroy(&pcm->idlelock);
 	kfree(pcm);
-
 	return rc;
 }
 

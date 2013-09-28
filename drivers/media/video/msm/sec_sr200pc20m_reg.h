@@ -16,11 +16,11 @@ static const u16 sr200pc20m_common[] = {
 	/* Self-Cam -continuous*/
 	/* CAMERA INITIAL for Self Camera(Variable Frame)*/
 	
-0x01f9, /* sleep on */
-0x01fb, /* sleep on */
-0x01f9, /* sleep on */
-0x0820, /* sleep on */
-0x0a3f, /* sleep on */
+0x0131, /* sleep on */
+0x0133, /* sleep on */
+0x0131, /* sleep on */
+0x082f, /* sleep on */
+0x0a00, /* sleep on */
 
 /* PAGE 20 */
 0x0320, /* page 20 */
@@ -137,9 +137,10 @@ static const u16 sr200pc20m_common[] = {
 0x3005, /* For Hi-253 never no change 0x05 */
 
 0x5020,
-0x5103, /* 20110826 추가 */
+0x511c, /* 20110826 추가 */
 0x5201, /* 0x03 --> 0x01 */
 0x53c1, /* 20110818 추가 */
+0x54c0,
 0x551c,
 0x5611,
 0x5da2,
@@ -278,18 +279,18 @@ static const u16 sr200pc20m_common[] = {
 0x4100,
 
 0x606b,
-0x617a, /* 77 */
-0x6272, /* 77 */
+0x617b, /* 77 */
+0x6273, /* 77 */
 0x6350, /* Double_AG 50->30 */
 0x6480,
 
 0x6642,
 0x6720,
 
-0x6a80, /* 8a */
-0x6b84, /* 74 */
-0x6c7a, /* 7e */
-0x6d80, /* 8e */
+0x6a8a, /* 8a */
+0x6b76, /* 74 */
+0x6c7b, /* 7e */
+0x6d8e, /* 8e */
 
 /* PAGE 11 START */
 0x0311,
@@ -298,8 +299,8 @@ static const u16 sr200pc20m_common[] = {
 0x120a, /* Blue Max-Filter Delete */
 0x13bb,
 
-0x2631, /* Double_AG 31->20 */
-0x2734, /* Double_AG 34->22 */
+0x2668, /* Double_AG 31->20 */
+0x2762, /* Double_AG 34->22 */
 0x280f,
 0x2910,
 0x2b30,
@@ -655,10 +656,10 @@ static const u16 sr200pc20m_common[] = {
 0x3300,
 0x3490,
 
-0x4037,
-0x5026, /* 2d */
-0x6022, /* 26 */
-0x7026, /* 2d */
+0x4033,
+0x5025, /* 2d */
+0x6024, /* 26 */
+0x7025, /* 2d */
 /* PAGE 14 END */
 
 /* PAGE 15 START */
@@ -695,15 +696,15 @@ static const u16 sr200pc20m_common[] = {
 0x4828,
 
 /*CMC POFS*/
-0x5002,
-0x5182,
-0x5200,
-0x5307,
+0x5003,
+0x5100,
+0x5283,
+0x5308,
 0x5411,
-0x5598,
-0x5600,
-0x570b,
-0x588b,
+0x5599,
+0x5603,
+0x570f,
+0x5892,
 
 0x8000,
 0x8580,
@@ -745,10 +746,10 @@ static const u16 sr200pc20m_common[] = {
 0x42ff,
 
 0x5000,
-0x5108,
-0x521e,
-0x5336,
-0x545a,
+0x5103,
+0x5219,
+0x5334,
+0x5458,
 0x5575,
 0x568d,
 0x57a1,
@@ -954,9 +955,9 @@ static const u16 sr200pc20m_common[] = {
 
 0x4132, /* 33 */
 0x4222, /* 22 */
-0x43f0, /* f6 */
-0x4444, /* 44 */
-0x4544, /* 33 */
+0x43f3, /* f6 */
+0x4432, /* 44 */
+0x4533, /* 33 */
 0x4600,
 0x50b2,
 0x5181,
@@ -966,30 +967,30 @@ static const u16 sr200pc20m_common[] = {
 0x8120,
 0x8236, /* 3a */
 
-0x835e, /* 5e */
-0x8422, /* 24 21 22 Spec AWB H modify */
-0x854f, /* 54 51 4f Spec AWB H modify */
+0x8356, /* 5e */
+0x841e, /* 24 21 22 Spec AWB H modify */
+0x8553, /* 54 51 4f Spec AWB H modify */
 0x8620, /* 24 */
 
-0x8748,
-0x8838,
-0x8937, /* 38 */
-0x8a29, /* 2a */
+0x8740,
+0x8831,
+0x8936, /* 38 */
+0x8a2a, /* 2a */
 
-0x8b40, /* 47 */
+0x8b3d, /* 47 */
 0x8c38,
-0x8d34,
-0x8e29, /* 2c */
+0x8d32,
+0x8e2a, /* 2c */
 
 0x8f5c,
 0x905b,
-0x9157,
-0x924f,
-0x9343,
-0x943e,
-0x9534,
-0x962c,
-0x9723,
+0x9156,
+0x924d,
+0x9345,
+0x943b,
+0x952f,
+0x9629,
+0x9722,
 0x9820,
 0x991f,
 0x9a1f,
@@ -1000,8 +1001,8 @@ static const u16 sr200pc20m_common[] = {
 0x9e38,
 0x9f30,
 
-0xa060,
-0xa134,
+0xa040,
+0xa154,
 0xa26f,
 0xa3ff,
 
@@ -1047,10 +1048,10 @@ static const u16 sr200pc20m_common[] = {
 0x1900,
 0x1a32,
 0x1b17,
-0x1c0e,
+0x1c0c,
 0x1d0f,
-0x1e04,
-0x1f04,
+0x1e06,
+0x1f05,
 0x2000,
 
 0x2301,
@@ -1070,7 +1071,7 @@ static const u16 sr200pc20m_common[] = {
 /*0x3040, 800x600 MiPi OutPut*/
 /*0x3106,*/
 
-0x3206,
+0x320c,
 0x330a,
 0x3402,/*CLK LP -> HS Prepare time 24MHz:0x02, 48MHz:0x03*/
 0x3503,
@@ -1106,7 +1107,7 @@ static const u16 sr200pc20m_common[] = {
 0x0300,
 
 0x0300,
-0x01f8,
+0x0130,
 
 0xff0a, /* NEED Delay 100ms */
 
@@ -1117,11 +1118,11 @@ static const u16 sr200pc20m_common[] = {
 static const u32 sr200pc20m_vt_common[] =
 {
 	/* SKT-VT - continuous*/
-0x01f9, /* sleep on */
-0x01fb, /* sleep on */
-0x01f9, /* sleep on */
-0x0820, /* sleep on */
-0x0a3f, /* sleep on */
+0x0131, /* sleep on */
+0x0133, /* sleep on */
+0x0131, /* sleep on */
+0x082f, /* sleep on */
+0x0a00, /* sleep on */
 
 /* PAGE 20 */
 0x0320, /* page 20 */
@@ -1238,9 +1239,10 @@ static const u32 sr200pc20m_vt_common[] =
 0x3005, /* For Hi-253 never no change 0x05 */
 
 0x5020,
-0x5103, /* 20110826 추가 */
+0x511c, /* 20110826 추가 */
 0x5201, /* 0x03 --> 0x01 */
 0x53c1, /* 20110818 추가 */
+0x54c0,
 0x551c,
 0x5611,
 0x5da2,
@@ -1379,18 +1381,18 @@ static const u32 sr200pc20m_vt_common[] =
 0x412c,
 
 0x606b,
-0x617a, /* 77 */
-0x6272, /* 77 */
+0x617b, /* 77 */
+0x6273, /* 77 */
 0x6350, /* Double_AG 50->30 */
 0x6480,
 
 0x6642,
 0x6720,
 
-0x6a80, /* 8a */
-0x6b84, /* 74 */
-0x6c7a, /* 7e */
-0x6d80, /* 8e */
+0x6a8a, /* 8a */
+0x6b76, /* 74 */
+0x6c7b, /* 7e */
+0x6d8e, /* 8e */
 
 /* PAGE 11 START */
 0x0311,
@@ -1399,8 +1401,8 @@ static const u32 sr200pc20m_vt_common[] =
 0x120a, /* Blue Max-Filter Delete */
 0x13bb,
 
-0x2631, /* Double_AG 31->20 */
-0x2734, /* Double_AG 34->22 */
+0x2668, /* Double_AG 31->20 */
+0x2762, /* Double_AG 34->22 */
 0x280f,
 0x2910,
 0x2b30,
@@ -1759,10 +1761,10 @@ static const u32 sr200pc20m_vt_common[] =
 0x3300,
 0x3490,
 
-0x4037,
-0x5026, /* 2d */
-0x6022, /* 26 */
-0x7026, /* 2d */
+0x4033,
+0x5025, /* 2d */
+0x6024, /* 26 */
+0x7025, /* 2d */
 /* PAGE 14 END */
 
 /* PAGE 15 START */
@@ -2062,9 +2064,9 @@ static const u32 sr200pc20m_vt_common[] =
 
 0x4132, /* 33 */
 0x4222, /* 22 */
-0x43f0, /* f6 */
-0x4444, /* 44 */
-0x4544, /* 33 */
+0x43f3, /* f6 */
+0x4432, /* 44 */
+0x4533, /* 33 */
 0x4600,
 0x50b2,
 0x5181,
@@ -2074,28 +2076,28 @@ static const u32 sr200pc20m_vt_common[] =
 0x8120,
 0x8236, /* 3a */
 
-0x835e, /* 5e */
-0x8422, /* 24 21 22 Spec AWB H modify */
-0x854f, /* 54 51 4f Spec AWB H modify */
+0x8356, /* 5e */
+0x841e, /* 24 21 22 Spec AWB H modify */
+0x8553, /* 54 51 4f Spec AWB H modify */
 0x8620, /* 24 */
 
-0x8748,
-0x8838,
-0x8937, /* 38 */
-0x8a29, /* 2a */
+0x8740,
+0x8831,
+0x8936, /* 38 */
+0x8a2a, /* 2a */
 
-0x8b40, /* 47 */
+0x8b3d, /* 47 */
 0x8c38,
-0x8d34,
-0x8e29, /* 2c */
+0x8d32,
+0x8e2a, /* 2c */
 
 0x8f5c,
 0x905b,
 0x9157,
 0x924f,
-0x9343,
-0x943e,
-0x9534,
+0x9341,
+0x9439,
+0x9530,
 0x962c,
 0x9723,
 0x9820,
@@ -2108,8 +2110,8 @@ static const u32 sr200pc20m_vt_common[] =
 0x9e38,
 0x9f30,
 
-0xa060,
-0xa134,
+0xa070,
+0xa154,
 0xa26f,
 0xa3ff,
 
@@ -2154,10 +2156,10 @@ static const u32 sr200pc20m_vt_common[] =
 0x1900,
 0x1a32,
 0x1b17,
-0x1c0e,
+0x1c0c,
 0x1d0f,
-0x1e04,
-0x1f04,
+0x1e06,
+0x1f05,
 0x2000,
 
 0x2301,
@@ -2177,7 +2179,7 @@ static const u32 sr200pc20m_vt_common[] =
 /*0x3040, 800x600 MiPi OutPut*/
 /*0x3106,*/
 
-0x3206,
+0x320c,
 0x330a,
 0x3402,/*CLK LP -> HS Prepare time 24MHz:0x02, 48MHz:0x03*/
 0x3503,
@@ -2214,7 +2216,7 @@ static const u32 sr200pc20m_vt_common[] =
 0x0300,
 
 0x0300,
-0x01f8,
+0x0130,
 
 0xff28, /* NEED Delay 400ms */
 };
@@ -2226,11 +2228,11 @@ static const u32 sr200pc20m_vt_wifi_common[] =
 {
 	/* wifi 15fps vt-call 110815 */
 	/* CAMERA INITIAL for VT 15 Fixed Frame */
-0x01f9, /*sleep on*/
-0x01fb, /* sleep on */
-0x01f9, /* sleep on */
-0x0820, /* sleep on */
-0x0a3f, /* sleep on */
+0x0131, /* sleep on */
+0x0133, /* sleep on */
+0x0131, /* sleep on */
+0x082f, /* sleep on */
+0x0a00, /* sleep on */
 
 /* PAGE 20 */
 0x0320, /* page 20 */
@@ -2347,9 +2349,10 @@ static const u32 sr200pc20m_vt_wifi_common[] =
 0x3005, /*For Hi-253 never no change 0x05*/
 
 0x5020,
-0x5103, /*20110826 추가*/
-0x5201, /*0x03 --> 0x01*/
-0x53c1, /*20110818 추가*/
+0x511c, /* 20110826 추가 */
+0x5201, /* 0x03 --> 0x01 */
+0x53c1, /* 20110818 추가 */
+0x54c0,
 0x551c,
 0x5611,
 0x5da2,
@@ -2469,7 +2472,7 @@ static const u32 sr200pc20m_vt_wifi_common[] =
 
 /* PAGE 10 START */
 0x0310,
-0x1001, /* CrYCbY /* For Demoset 0x03*/
+0x1001, /* CrYCbY - For Demoset 0x03*/
 0x1230,
 0x2000,
 0x3000,
@@ -2488,18 +2491,18 @@ static const u32 sr200pc20m_vt_wifi_common[] =
 0x4100,
 
 0x606b,
-0x617a, /*77*/
-0x6279, /*77*/
-0x6350, /* Double_AG 50->30*/
+0x617b, /* 77 */
+0x6273, /* 77 */
+0x6350, /* Double_AG 50->30 */
 0x6480,
 
 0x6642,
 0x6720,
 
-0x6a80, /*8a*/
-0x6b84, /*74*/
-0x6c7a, /*7e*/
-0x6d80, /*8e*/
+0x6a8a, /* 8a */
+0x6b76, /* 74 */
+0x6c7b, /* 7e */
+0x6d8e, /* 8e */
 
 /* PAGE 11 START */
 0x0311,
@@ -2868,10 +2871,10 @@ static const u32 sr200pc20m_vt_wifi_common[] =
 0x3300,
 0x3490,
 
-0x4037,
-0x5026, /*2d*/
-0x6022, /*26*/
-0x7026, /*2d*/
+0x4033,
+0x5025, /* 2d */
+0x6024, /* 26 */
+0x7025, /* 2d */
 /* PAGE 14 END */
 
 /*/ PAGE 15 START */
@@ -3171,9 +3174,9 @@ static const u32 sr200pc20m_vt_wifi_common[] =
 
 0x4132, /*33*/
 0x4222, /*22*/
-0x43f0, /*f6*/
-0x4444, /*44*/
-0x4544, /*33*/
+0x43f3, /* f6 */
+0x4432, /* 44 */
+0x4533, /* 33 */
 0x4600,
 0x50b2,
 0x5181,
@@ -3183,28 +3186,28 @@ static const u32 sr200pc20m_vt_wifi_common[] =
 0x8120,
 0x8236, /*3a*/
 
-0x835e, /*5e*/
-0x8422, /* 24 21 22 Spec AWB H modify */
-0x854f, /* 54 51 4f Spec AWB H modify */
-0x8620, /*24*/
+0x8356, /* 5e */
+0x841e, /* 24 21 22 Spec AWB H modify */
+0x8553, /* 54 51 4f Spec AWB H modify */
+0x8620, /* 24 */
 
-0x8748,
-0x8838,
-0x8937, /*38*/
-0x8a29, /*2a*/
+0x8740,
+0x8831,
+0x8936, /* 38 */
+0x8a2a, /* 2a */
 
-0x8b40, /* 47 */
+0x8b3d, /* 47 */
 0x8c38,
-0x8d34,
-0x8e29, /*2c*/
+0x8d32,
+0x8e2a, /* 2c */
 
 0x8f5c,
 0x905b,
 0x9157,
 0x924f,
-0x9343,
-0x943e,
-0x9534,
+0x9341,
+0x9439,
+0x9530,
 0x962c,
 0x9723,
 0x9820,
@@ -3217,8 +3220,8 @@ static const u32 sr200pc20m_vt_wifi_common[] =
 0x9e38,
 0x9f30,
 
-0xa060,
-0xa134,
+0xa070,
+0xa154,
 0xa26f,
 0xa3ff,
 
@@ -3262,10 +3265,10 @@ static const u32 sr200pc20m_vt_wifi_common[] =
 0x1900,
 0x1a32,
 0x1b17,
-0x1c0e,
+0x1c0c,
 0x1d0f,
-0x1e04,
-0x1f04,
+0x1e06,
+0x1f05,
 0x2000,
 
 0x2301,
@@ -3285,7 +3288,7 @@ static const u32 sr200pc20m_vt_wifi_common[] =
 /*0x3040, 800x600 MiPi OutPut*/
 /*0x3106,*/
 
-0x3206,
+0x320c,
 0x330a,
 0x3402,/*CLK LP -> HS Prepare time 24MHz:0x02, 48MHz:0x03*/
 0x3503,
@@ -3322,7 +3325,7 @@ static const u32 sr200pc20m_vt_wifi_common[] =
 
 0x0300,
 
-0x01f8,
+0x0130,
 
 0xff28,/*NEED Delay 400ms*/
 };
@@ -3335,7 +3338,7 @@ static const u32 sr200pc20m_vt_wifi_common[] =
 static const u16 sr200pc20m_preview[] =
 {
 0x0300, /*Sleep On*/
-0x01f9,
+0x0131,
 
 0x0320, /*page 20*/
 0x1830, /*for Preview*/
@@ -3407,10 +3410,10 @@ static const u16 sr200pc20m_preview[] =
 0x1900,
 0x1a32,
 0x1b17,
-0x1c0e,
+0x1c0c,
 0x1d0f,
-0x1e04,
-0x1f04,
+0x1e06,
+0x1f05,
 0x2000,
 
 0x2301,
@@ -3430,7 +3433,7 @@ static const u16 sr200pc20m_preview[] =
 /*0x3040, 800x600 MiPi OutPut*/
 /*0x3106,*/
 
-0x3206,
+0x320c,
 0x330a,
 0x3402,/*CLK LP -> HS Prepare time 24MHz:0x02, 48MHz:0x03*/
 0x3501,
@@ -3463,7 +3466,7 @@ static const u16 sr200pc20m_preview[] =
 0x0300,
 
 0x0300, /*Sleep Off*/
-0x01f8,
+0x0130,
 
 0xff28, /*400ms*/
 
@@ -3476,7 +3479,7 @@ static const u16 sr200pc20m_preview[] =
 static const u16 sr200pc20m_capture[] =
 {
 0x0300,
-0x01f9,
+0x0131,
 
 0x0322, /*Page 22*/
 0x1069, /*AWB Off*/
@@ -3539,9 +3542,9 @@ static const u16 sr200pc20m_capture[] =
 0x1900,
 0x1a32,
 0x1b17,
-0x1c0c,
-0x1d0f,
-0x1e05,
+0x1c0b,
+0x1d0e,
+0x1e06,
 0x1f05,
 0x2000,
 
@@ -3562,7 +3565,7 @@ static const u16 sr200pc20m_capture[] =
 /*0x3040, 800x600 MiPi OutPut*/
 /*0x3106,*/
 
-0x3206,
+0x320c,
 0x330a,
 0x3403,/*CLK LP -> HS Prepare time 24MHz:0x02, 48MHz:0x03*/
 0x3503,
@@ -3591,7 +3594,7 @@ static const u16 sr200pc20m_capture[] =
 0x0300,
 
 0x0300,
-0x01f8, /*Sleep Off*/
+0x0130, /*Sleep Off*/
 
 0xff03, /*Increase from 30ms*/
 
@@ -3604,11 +3607,11 @@ static const u16 sr200pc20m_capture[] =
 static const u16 sr200pc20m_recording_60Hz_common[] = {
 	/* Recording 25fps Anti-Flicker 60Hz END of Initial */
 	/* CAMERA INITIAL for Self Recording 24 Fixed Frame */
-0x01f9, /*sleep on*/
-0x01fb, /* sleep on */
-0x01f9, /*sleep on*/
-0x0820, /* sleep on */
-0x0a3f, /* sleep on */
+0x0131, /* sleep on */
+0x0133, /* sleep on */
+0x0131, /* sleep on */
+0x082f, /* sleep on */
+0x0a00, /* sleep on */
 
 /* PAGE 20 */
 0x0320, /*page 20*/
@@ -3723,9 +3726,10 @@ static const u16 sr200pc20m_recording_60Hz_common[] = {
 0x3005, /*For Hi-253 never no change 0x05*/
 
 0x5020,
-0x5103, /*20110826*/
-0x5201, /*0x03 --> 0x01*/
-0x53c1, /*20110818 추가*/
+0x511c, /* 20110826 추가 */
+0x5201, /* 0x03 --> 0x01 */
+0x53c1, /* 20110818 추가 */
+0x54c0,
 0x551c,
 0x5611,
 0x5da2,
@@ -3864,18 +3868,18 @@ static const u16 sr200pc20m_recording_60Hz_common[] = {
 0x4100,
 
 0x6067, /*Setting For Camcorder 24*/
-0x617a, /*77*/
-0x6279, /*77*/
-0x6350, /* Double_AG 50->30*/
+0x617b, /* 77 */
+0x6273, /* 77 */
+0x6350, /* Double_AG 50->30 */
 0x6480,
 
 0x6642,
 0x6720,
 
-0x6a80, /*8a*/
-0x6b84, /*74*/
-0x6c7a, /*7e*/
-0x6d80, /*8e*/
+0x6a8a, /* 8a */
+0x6b76, /* 74 */
+0x6c7b, /* 7e */
+0x6d8e, /* 8e */
 
 /* PAGE 11 START */
 0x0311,
@@ -4235,10 +4239,10 @@ static const u16 sr200pc20m_recording_60Hz_common[] = {
 0x3300,
 0x3490,
 
-0x4037,
-0x5026, /*2d*/
-0x6022, /*26*/
-0x7026, /*2d*/
+0x4033,
+0x5025, /* 2d */
+0x6024, /* 26 */
+0x7025, /* 2d */
 /* PAGE 14 END */
 
 /* PAGE 15 START */
@@ -4539,9 +4543,9 @@ static const u16 sr200pc20m_recording_60Hz_common[] = {
 
 0x4132, /*33 */
 0x4222, /*22 */
-0x43f0, /*f6*/
-0x4444, /*44*/
-0x4544, /*33*/
+0x43f3, /* f6 */
+0x4432, /* 44 */
+0x4533, /* 33 */
 0x4600,
 0x50b2,
 0x5181,
@@ -4551,28 +4555,28 @@ static const u16 sr200pc20m_recording_60Hz_common[] = {
 0x8120,
 0x8236, /*3a*/
 
-0x835e, /*5e*/
-0x8422, /* 24 21 22 Spec AWB H modify */
-0x854f, /* 54 51 4f Spec AWB H modify */
-0x8620, /*24 */
+0x8356, /* 5e */
+0x841e, /* 24 21 22 Spec AWB H modify */
+0x8553, /* 54 51 4f Spec AWB H modify */
+0x8620, /* 24 */
 
-0x8748,
-0x8838,
-0x8937, /*38*/
-0x8a29, /*2a*/
+0x8740,
+0x8831,
+0x8936, /* 38 */
+0x8a2a, /* 2a */
 
-0x8b40, /* 47 */
+0x8b3d, /* 47 */
 0x8c38,
-0x8d34,
-0x8e29, /*2c*/
+0x8d32,
+0x8e2a, /* 2c */
 
 0x8f5c,
 0x905b,
 0x9157,
 0x924f,
-0x9343,
-0x943e,
-0x9534,
+0x9341,
+0x9439,
+0x9530,
 0x962c,
 0x9723,
 0x9820,
@@ -4585,8 +4589,8 @@ static const u16 sr200pc20m_recording_60Hz_common[] = {
 0x9e38,
 0x9f30,
 
-0xa060,
-0xa134,
+0xa070,
+0xa154,
 0xa26f,
 0xa3ff,
 
@@ -4631,9 +4635,9 @@ static const u16 sr200pc20m_recording_60Hz_common[] = {
 0x1900,
 0x1a32,
 0x1b17,
-0x1c0c,
-0x1d0f,
-0x1e05,
+0x1c0b,
+0x1d0e,
+0x1e06,
 0x1f05,
 0x2000,
 
@@ -4654,7 +4658,7 @@ static const u16 sr200pc20m_recording_60Hz_common[] = {
 /*0x3040, 800x600 MiPi OutPut*/
 /*0x3106,*/
 
-0x3206,
+0x320c,
 0x330a,
 0x3403,/*CLK LP -> HS Prepare time 24MHz:0x02, 48MHz:0x03*/
 0x3503,
@@ -4688,7 +4692,7 @@ static const u16 sr200pc20m_recording_60Hz_common[] = {
 0x0300,
 
 0x0300,
-0x01f8,
+0x0130,
 0xff28,/*NEED Delay 400ms*/
 };
 
@@ -4839,7 +4843,7 @@ static const u16 sr200pc20m_vt_7fps[] =
 {
 	/* Fixed 7fps Mode */
 0x0300,
-0x01f9,
+0x0131,
 0x1190,
 
 0x4001, /*Hblank 360*/
@@ -4915,10 +4919,10 @@ static const u16 sr200pc20m_vt_7fps[] =
 0x1900,
 0x1a32,
 0x1b17,
-0x1c0e,
+0x1c0c,
 0x1d0f,
-0x1e04,
-0x1f04,
+0x1e06,
+0x1f05,
 0x2000,
 
 0x2301,
@@ -4938,7 +4942,7 @@ static const u16 sr200pc20m_vt_7fps[] =
 /*0x3040, 800x600 MiPi OutPut*/
 /*0x3106,*/
 
-0x3206,
+0x320c,
 0x330a,
 0x3402,/*CLK LP -> HS Prepare time 24MHz:0x02, 48MHz:0x03*/
 0x3503,
@@ -4961,7 +4965,7 @@ static const u16 sr200pc20m_vt_7fps[] =
 0x0300,
 0x0300,
 
-0x01f8,
+0x0130,
 
 0xff28,/*NEED Delay 400ms*/
 
@@ -4971,7 +4975,7 @@ static const u16 sr200pc20m_vt_10fps[] =
 {
 	/*  Fixed 10fps Mode */
 0x0300,
-0x01f9,
+0x0131,
 0x1190,
 
 0x4001, /*Hblank 360*/
@@ -5047,10 +5051,10 @@ static const u16 sr200pc20m_vt_10fps[] =
 0x1900,
 0x1a32,
 0x1b17,
-0x1c0e,
+0x1c0c,
 0x1d0f,
-0x1e04,
-0x1f04,
+0x1e06,
+0x1f05,
 0x2000,
 
 0x2301,
@@ -5070,7 +5074,7 @@ static const u16 sr200pc20m_vt_10fps[] =
 /*0x3040, 800x600 MiPi OutPut*/
 /*0x3106,*/
 
-0x3206,
+0x320c,
 0x330a,
 0x3402,/*CLK LP -> HS Prepare time 24MHz:0x02, 48MHz:0x03*/
 0x3503,
@@ -5093,7 +5097,7 @@ static const u16 sr200pc20m_vt_10fps[] =
 0x0300,
 0x0300,
 
-0x01f8,
+0x0130,
 
 0xff28,/*NEED Delay 400ms*/
 
@@ -5103,7 +5107,7 @@ static const u16 sr200pc20m_vt_12fps[] =
 {
 	/*  Fixed 12fps Mode */
 0x0300,
-0x01f9,
+0x0131,
 0x1190,
 
 0x4001, /*Hblank 360*/
@@ -5179,10 +5183,10 @@ static const u16 sr200pc20m_vt_12fps[] =
 0x1900,
 0x1a32,
 0x1b17,
-0x1c0e,
+0x1c0c,
 0x1d0f,
-0x1e04,
-0x1f04,
+0x1e06,
+0x1f05,
 0x2000,
 
 0x2301,
@@ -5202,7 +5206,7 @@ static const u16 sr200pc20m_vt_12fps[] =
 /*0x3040, 800x600 MiPi OutPut*/
 /*0x3106,*/
 
-0x3206,
+0x320c,
 0x330a,
 0x3402,/*CLK LP -> HS Prepare time 24MHz:0x02, 48MHz:0x03*/
 0x3503,
@@ -5225,7 +5229,7 @@ static const u16 sr200pc20m_vt_12fps[] =
 0x0300,
 0x0300,
 
-0x01f8,
+0x0130,
 
 0xff28,/*NEED Delay 400ms*/
 
@@ -5235,7 +5239,7 @@ static const u16 sr200pc20m_vt_15fps[] =
 {
 	/* Fixed 15fps Mode */
 0x0300,
-0x01f9,
+0x0131,
 0x1190,
 
 0x4001, /*Hblank 360*/
@@ -5311,10 +5315,10 @@ static const u16 sr200pc20m_vt_15fps[] =
 0x1900,
 0x1a32,
 0x1b17,
-0x1c0e,
+0x1c0c,
 0x1d0f,
-0x1e04,
-0x1f04,
+0x1e06,
+0x1f05,
 0x2000,
 
 0x2301,
@@ -5334,7 +5338,7 @@ static const u16 sr200pc20m_vt_15fps[] =
 /*0x3040, 800x600 MiPi OutPut*/
 /*0x3106,*/
 
-0x3206,
+0x320c,
 0x330a,
 0x3402,/*CLK LP -> HS Prepare time 24MHz:0x02, 48MHz:0x03*/
 0x3503,
@@ -5357,7 +5361,7 @@ static const u16 sr200pc20m_vt_15fps[] =
 0x0300,
 0x0300,
 
-0x01f8,
+0x0130,
 
 0xff28,/*NEED Delay 400ms*/
 

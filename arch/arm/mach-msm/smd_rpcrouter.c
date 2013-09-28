@@ -696,7 +696,7 @@ static struct msm_rpc_endpoint *rpcrouter_lookup_local_endpoint(uint32_t cid)
 	list_for_each_entry(ept, &local_endpoints, list) {
 		if (ept->cid == cid)
 			return ept;
-		}
+	}
 	return NULL;
 }
 
@@ -828,11 +828,6 @@ static int process_control_msg(struct rpcrouter_xprt_info *xprt_info,
 			"rpcrouter: Server create rejected, version = 0, "
 			"program = %08x\n", msg->srv.prog);
 			break;
-		}
-
-		if(msg->srv.prog == 0x300000A7 && msg->srv.vers == 0x00010001)
-		{
-			printk(KERN_ERR"rpcrouter:Client 0x300000A7\n");
 		}
 
 		RR("o NEW_SERVER id=%d:%08x prog=%08x:%08x\n",
@@ -2055,11 +2050,6 @@ int msm_rpc_register_server(struct msm_rpc_endpoint *ept,
 	struct rr_server *server;
 	struct rpcrouter_xprt_info *xprt_info;
 
-	if(prog == 0x300000A7 && vers == 0x00010001)
-	{
-		printk(KERN_ERR"msm_rpc_register_server1: 0x300000A7\n");
-	}
-
 	server = rpcrouter_create_server(ept->pid, ept->cid,
 					 prog, vers);
 	if (!server)
@@ -2079,20 +2069,10 @@ int msm_rpc_register_server(struct msm_rpc_endpoint *ept,
 		rc = rpcrouter_send_control_msg(xprt_info, &msg);
 		if (rc < 0) {
 			mutex_unlock(&xprt_info_list_lock);
-			if(prog == 0x300000A7 && vers == 0x00010001)
-			{
-				printk(KERN_ERR"msm_rpc_register_server2: 0x300000A7\n");
-			}
 			return rc;
 		}
 	}
 	mutex_unlock(&xprt_info_list_lock);
-	
-	if(prog == 0x300000A7 && vers == 0x00010001)
-	{
-		printk(KERN_ERR"msm_rpc_register_server3: 0x300000A7\n");
-	}
-	
 	return 0;
 }
 

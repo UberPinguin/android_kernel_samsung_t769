@@ -11677,5 +11677,10 @@ static const u32 s5k6aafx_pattern_off[] = {
 0xffff0064,
 };
 
+static const u32 s5k6aafx_vflip[] = {
+	0xffff0001,
+};
+
+
 #endif /* __SEC_s5k6aafx_REG_H */
 

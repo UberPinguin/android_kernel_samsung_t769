@@ -97,8 +97,8 @@ typedef enum {
 } Lcd_mDNIe_User_Set;
 
 
-static struct class *mdnieset_ui_class;
-struct device *switch_mdnieset_ui_dev;
+static struct class *mdnie_class;
+struct device *mdnie_dev;
 struct class *mdnieset_outdoor_class;
 struct device *switch_mdnieset_outdoor_dev;
 
@@ -307,10 +307,10 @@ void lut_tune(int num, unsigned int *pLutTable )
 	static int mdp_lut_i = 0;
 	u16 r_1, g_1, b_1;//for final assignment
 //	fb = open("/dev/graphics/fb0", O_RDWR);
-	info = registered_fb[0];
-
 	__u16 *r, *g, *b, i;
 	int j = 0;
+	
+	info = registered_fb[0];
 	cmap = &test_cmap;
 	//=====================================
 	// cmap allocation 
@@ -375,7 +375,7 @@ void lut_tune(int num, unsigned int *pLutTable )
 				 ((b_1 & 0xff) << 8) |
 				 ((r_1 & 0xff) << 16)));
 	}
-	MDP_OUTP(MDP_BASE + 0x90070, (mdp_lut_i << 10) | 0x1F);
+	MDP_OUTP(MDP_BASE + 0x90070, (mdp_lut_i << 10) | 0x17);
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
 	mdp_lut_i = (mdp_lut_i + 1)%2;
 	mutex_unlock(&msm_fb_ioctl_lut_sem1);
@@ -398,7 +398,7 @@ void sharpness_tune(int num )
 
 
 ////////////////[
-int s3c_mdnie_start()
+int s3c_mdnie_start(void)
 {
 	g_mdine_enable = 1;
 	return 0;
@@ -412,52 +412,56 @@ int s3c_mdnie_off(void)
 
 void mDNIe_Set_Mode(Lcd_mDNIe_UI mode)
 {
-	unsigned int *pLut;
+	unsigned int *pLut = NULL;
 	int	sharpvalue = 0;
 	static int isSetDMBMode = 0;
 
 	DPRINT("[mdnie set] mDNIe_Set_Mode \n");
 	if(!g_mdine_enable) {
 		printk(KERN_ERR"[mDNIE WARNING] mDNIE engine is OFF. So you cannot set mDnie Mode correctly.\n");
-		return 0;
+		return;  // return 0;
 	}
 		switch (mode) {
 		case mDNIe_UI_MODE:
+#if 1 // QSEED Check save			
 			if(isSetDMBMode==1)
 			{
 				mdp4_vg_qseed_init_VideoPlay(0);
 //				mdp4_vg_qseed_init_VideoPlay(1);
 				isSetDMBMode = 0;
 			}
-			pLut = DMB_LUT;
+#endif			
+			pLut = UI_LUT;
 			sharpvalue = SHARPNESS_BYPASS;
 			break;
 
 		case mDNIe_VIDEO_MODE:
 		case mDNIe_VIDEO_WARM_MODE:
 		case mDNIe_VIDEO_COLD_MODE:
+#if 1 // QSEED Check save			
 			if(isSetDMBMode==1)
 			{
 				mdp4_vg_qseed_init_VideoPlay(0);
 //				mdp4_vg_qseed_init_VideoPlay(1);
 				isSetDMBMode = 0;
 			}
+#endif			
 			pLut = VIDEO_LUT;
 			sharpvalue = SHARPNESS_VIDEO;		
 			break;
 
 		case mDNIe_CAMERA_MODE:
-			pLut = BYPASS_LUT;
+			pLut = CAMERA_LUT;
 			sharpvalue = SHARPNESS_BYPASS;
 			break;
 
 		case mDNIe_NAVI:
-			pLut = BYPASS_LUT;
+			pLut = NAVI_LUT;
 			sharpvalue = SHARPNESS_BYPASS;
 			break;
 			
 		case mDNIe_GALLERY:
-			pLut = BYPASS_LUT;
+			pLut = GALLERY_LUT;
 			sharpvalue = SHARPNESS_BYPASS;
 			break;
 		case mDNIe_BYPASS: 
@@ -469,12 +473,14 @@ void mDNIe_Set_Mode(Lcd_mDNIe_UI mode)
 		case mDNIe_DMB_MODE:				// warm, clod not distinguish
 		case mDNIe_DMB_WARM_MODE:
 		case mDNIe_DMB_COLD_MODE:
+#if 1  // QSEED Check save			
 			if(isSetDMBMode==0)
 			{
 				mdp4_vg_qseed_init_DMB(0);
 //				mdp4_vg_qseed_init_DMB(1);
 				isSetDMBMode = 1;
 			}
+#endif			
 			pLut = DMB_LUT;
 			sharpvalue = SHARPNESS_DMB;
 			break;
@@ -543,7 +549,7 @@ void mDNIe_User_Select_Mode(Lcd_mDNIe_User_Set mode)
 }
 
 
-static ssize_t mdnieset_ui_file_cmd_show(struct device *dev,
+static ssize_t scenario_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	int mdnie_ui = 0;
@@ -625,14 +631,14 @@ static ssize_t mdnieset_ui_file_cmd_show(struct device *dev,
 	return sprintf(buf, "%u\n", mdnie_ui);
 }
 
-static ssize_t mdnieset_ui_file_cmd_store(struct device *dev,
+static ssize_t scenario_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
 	int value;
 
 	sscanf(buf, "%d", &value);
 
-	DPRINT("[mdnie set] in mdnieset_ui_file_cmd_store, input value = %d \n",value);
+	DPRINT("[mdnie set] in scenario_store, input value = %d \n",value);
 
 	switch (value) {
 	case SIG_MDNIE_UI_MODE:
@@ -705,9 +711,8 @@ static ssize_t mdnieset_ui_file_cmd_store(struct device *dev,
 		break;		
 #endif
 
-
 	default:
-		printk(KERN_ERR "\nmdnieset_ui_file_cmd_store value is wrong : value(%d)\n", value);
+		printk(KERN_ERR "\nscenario_store value is wrong : value(%d)\n", value);
 		break;
 	}
 
@@ -716,9 +721,9 @@ static ssize_t mdnieset_ui_file_cmd_store(struct device *dev,
 	return size;
 }
 
-static DEVICE_ATTR(mdnieset_ui_file_cmd, 0664, mdnieset_ui_file_cmd_show, mdnieset_ui_file_cmd_store);
+static DEVICE_ATTR(scenario, 0664, scenario_show, scenario_store);
 
-static ssize_t mdnieset_user_select_file_cmd_show(struct device *dev,
+static ssize_t mode_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	int mdnie_ui = 0;
@@ -729,18 +734,18 @@ static ssize_t mdnieset_user_select_file_cmd_show(struct device *dev,
 	
 }
 
-static ssize_t mdnieset_user_select_file_cmd_store(struct device *dev,
+static ssize_t mode_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
 	int value;
 
 	sscanf(buf, "%d", &value);
-	DPRINT("[mdnie set] in mdnieset_user_select_file_cmd_store, input value = %d \n",value);
+	DPRINT("[mdnie set] in mode_store, input value = %d \n",value);
 
 	return size;
 }
 
-static DEVICE_ATTR(mdnieset_user_select_file_cmd, 0664, mdnieset_user_select_file_cmd_show, mdnieset_user_select_file_cmd_store);
+static DEVICE_ATTR(mode, 0664, mode_show, mode_store);
 
 
 static ssize_t mdnieset_init_file_cmd_show(struct device *dev,
@@ -761,14 +766,14 @@ static ssize_t mdnieset_init_file_cmd_store(struct device *dev,
 	int value;
 
 	sscanf(buf, "%d", &value);
-	DPRINT("\mdnieset_init_file_cmd_store  : value(%d)\n", value);	
+	DPRINT("mdnieset_init_file_cmd_store  : value(%d)\n", value);	
 	switch (value) {
 	case 0:  
 		current_mDNIe_Mode =mDNIe_UI_MODE;
 		break;
 		
 	default:
-		printk(KERN_ERR "\mdnieset_init_file_cmd_store value is wrong : value(%d)\n", value);
+		printk(KERN_ERR "mdnieset_init_file_cmd_store value is wrong : value(%d)\n", value);
 		break;
 	}
 	mDNIe_Set_Mode(current_mDNIe_Mode);
@@ -779,7 +784,7 @@ static ssize_t mdnieset_init_file_cmd_store(struct device *dev,
 static DEVICE_ATTR(mdnieset_init_file_cmd, 0664, mdnieset_init_file_cmd_show, mdnieset_init_file_cmd_store);
 
 
-static ssize_t mdnieset_outdoor_file_cmd_show(struct device *dev,
+static ssize_t outdoor_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	DPRINT("called %s \n", __func__);
@@ -787,7 +792,7 @@ static ssize_t mdnieset_outdoor_file_cmd_show(struct device *dev,
 	return sprintf(buf, "0\n" );
 }
 
-static ssize_t mdnieset_outdoor_file_cmd_store(struct device *dev,
+static ssize_t outdoor_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
 	int value;
@@ -795,7 +800,7 @@ static ssize_t mdnieset_outdoor_file_cmd_store(struct device *dev,
 	sscanf(buf, "%d", &value);
 
 
-	DPRINT("[mdnie set] in mdnieset_outdoor_file_cmd_store, input value = %d \n",value);
+	DPRINT("[mdnie set] in outdoor_store, input value = %d \n",value);
 
 
 //	mDNIe_Set_Mode(current_mDNIe_Mode, current_mDNIe_OutDoor_OnOff);
@@ -803,47 +808,50 @@ static ssize_t mdnieset_outdoor_file_cmd_store(struct device *dev,
 	return size;
 }
 
-static DEVICE_ATTR(mdnieset_outdoor_file_cmd, 0664, mdnieset_outdoor_file_cmd_show, mdnieset_outdoor_file_cmd_store);
+static DEVICE_ATTR(outdoor, 0664, outdoor_show, outdoor_store);
 ////////////////]
 
 
 void init_mdnie_class(void)
 {
-	mdnieset_ui_class = class_create(THIS_MODULE, "mdnieset_ui");
-	if (IS_ERR(mdnieset_ui_class))
-		pr_err("Failed to create class(mdnieset_ui_class)!\n");
+	mdnie_class = class_create(THIS_MODULE, "mdnie");
+	if (IS_ERR(mdnie_class))
+		pr_err("Failed to create class(mdnie_class)!\n");
 
-	switch_mdnieset_ui_dev = device_create(mdnieset_ui_class, NULL, 0, NULL, "switch_mdnieset_ui");
-	if (IS_ERR(switch_mdnieset_ui_dev))
+	mdnie_dev = device_create(mdnie_class, NULL, 0, NULL, "mdnie");
+	if (IS_ERR(mdnie_dev))
 		pr_err("Failed to create device(switch_mdnieset_ui_dev)!\n");
 
-	if (device_create_file(switch_mdnieset_ui_dev, &dev_attr_mdnieset_ui_file_cmd) < 0)
-		pr_err("Failed to create device file(%s)!\n", dev_attr_mdnieset_ui_file_cmd.attr.name);
+	if (device_create_file(mdnie_dev, &dev_attr_scenario) < 0)
+		pr_err("Failed to create device file(%s)!\n", dev_attr_scenario.attr.name);
 
-	if (device_create_file(switch_mdnieset_ui_dev, &dev_attr_mdnieset_user_select_file_cmd) < 0)
-		pr_err("Failed to create device file(%s)!\n", dev_attr_mdnieset_user_select_file_cmd.attr.name);
+	if (device_create_file(mdnie_dev, &dev_attr_mode) < 0)
+		pr_err("Failed to create device file(%s)!\n", dev_attr_mode.attr.name);
 
-	if (device_create_file(switch_mdnieset_ui_dev, &dev_attr_mdnieset_init_file_cmd) < 0)
+	if (device_create_file(mdnie_dev, &dev_attr_mdnieset_init_file_cmd) < 0)
 		pr_err("Failed to create device file(%s)!\n", dev_attr_mdnieset_init_file_cmd.attr.name);
 
-	mdnieset_outdoor_class = class_create(THIS_MODULE, "mdnieset_outdoor");
-	if (IS_ERR(mdnieset_outdoor_class))
-		pr_err("Failed to create class(mdnieset_outdoor_class)!\n");
+//	mdnieset_outdoor_class = class_create(THIS_MODULE, "mdnieset_outdoor");
+//	if (IS_ERR(mdnieset_outdoor_class))
+//		pr_err("Failed to create class(mdnieset_outdoor_class)!\n");
 
-	switch_mdnieset_outdoor_dev = device_create(mdnieset_outdoor_class, NULL, 0, NULL, "switch_mdnieset_outdoor");
-	if (IS_ERR(switch_mdnieset_outdoor_dev))
-		pr_err("Failed to create device(switch_mdnieset_outdoor_dev)!\n");
+//	switch_mdnieset_outdoor_dev = device_create(mdnieset_outdoor_class, NULL, 0, NULL, "switch_mdnieset_outdoor");
+//	if (IS_ERR(switch_mdnieset_outdoor_dev))
+//		pr_err("Failed to create device(switch_mdnieset_outdoor_dev)!\n");
 
-	if (device_create_file(switch_mdnieset_outdoor_dev, &dev_attr_mdnieset_outdoor_file_cmd) < 0)
-		pr_err("Failed to create device file(%s)!\n", dev_attr_mdnieset_outdoor_file_cmd.attr.name);
+	if (device_create_file(mdnie_dev, &dev_attr_outdoor) < 0)
+		pr_err("Failed to create device file(%s)!\n", dev_attr_outdoor.attr.name);
 	
 #ifdef MDP4_VIDEO_ENHANCE_TUNING    
-    if (device_create_file(switch_mdnieset_ui_dev, &dev_attr_tuning) < 0) {
+    if (device_create_file(mdnie_dev, &dev_attr_tuning) < 0) {
         pr_err("Failed to create device file(%s)!\n",dev_attr_tuning.attr.name);
     }
 #endif	
 	s3c_mdnie_start();
 	sharpness_tune(0);	
+#ifdef CONFIG_FB_MSM_MIPI_S6E8AA0_WXGA_Q1_PANEL
+	lut_tune(MAX_LUT_SIZE, UI_LUT);
+#endif
 }
 
 

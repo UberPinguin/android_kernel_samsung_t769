@@ -152,7 +152,7 @@ struct snd_set_ampgain {
 	int sp_att;
 	int sp_gainup;
 #if defined (CONFIG_USA_MODEL_SGH_T989)  || defined (CONFIG_USA_MODEL_SGH_I727)	 || defined(CONFIG_USA_MODEL_SGH_I717) \
-    || defined(CONFIG_USA_MODEL_SGH_I757)|| defined (CONFIG_USA_MODEL_SGH_T769) || defined(CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_CAN_MODEL_SGH_I577R) || defined(CONFIG_CAN_MODEL_SGH_I757M)
+    || defined(CONFIG_USA_MODEL_SGH_I757)|| defined (CONFIG_USA_MODEL_SGH_T769) || defined(CONFIG_USA_MODEL_SGH_I577) 
 	int bSpNg_DetectionLv;
 	int bSpNg_AttackTime;
 	int bSpNcpl_NonClipRatio;
@@ -171,7 +171,7 @@ struct yda165_i2c_data {
 
 #if defined (CONFIG_USA_MODEL_SGH_T989)  || defined (CONFIG_USA_MODEL_SGH_I727) || defined(CONFIG_USA_MODEL_SGH_I717) \
     || defined(CONFIG_USA_MODEL_SGH_I757) ||defined (CONFIG_KOR_MODEL_SHV_E120S) || defined (CONFIG_KOR_MODEL_SHV_E120K) || defined (CONFIG_KOR_MODEL_SHV_E120L)\
-    || defined (CONFIG_USA_MODEL_SGH_T769) || defined(CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_CAN_MODEL_SGH_I577R) || defined(CONFIG_CAN_MODEL_SGH_I757M)
+    || defined (CONFIG_USA_MODEL_SGH_T769) || defined(CONFIG_USA_MODEL_SGH_I577)
 void yda165_headset_call_onoff(int onoff);
 void yda165_speaker_call_onoff(int onoff);
 #endif
@@ -185,7 +185,7 @@ void yda165_tty_onoff(int onoff); 				/* tty path amp onoff */
 void yda165_headset_call_E120L_onoff(int onoff);
 #endif
 
-#if defined (CONFIG_KOR_MODEL_SHV_E120S)  || defined (CONFIG_KOR_MODEL_SHV_E120K) || defined (CONFIG_KOR_MODEL_SHV_E120L)
+#if defined (CONFIG_KOR_MODEL_SHV_E120S)  || defined (CONFIG_KOR_MODEL_SHV_E120K) || defined (CONFIG_KOR_MODEL_SHV_E120L) || defined(CONFIG_EUR_MODEL_GT_I9210)
 void yda165_lineout_onoff(int onoff); /* lineout path amp onoff */
 #endif
 

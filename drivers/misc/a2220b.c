@@ -30,7 +30,7 @@
 
 #ifdef CONFIG_USA_MODEL_SGH_I717
 #include "a2220b_cmd_Q1.h"
-#elif defined (CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_CAN_MODEL_SGH_I577R)
+#elif defined (CONFIG_USA_MODEL_SGH_I577)
 #include "a2220b_cmd_A2.h"
 #else
 #include "a2220b_cmd.h"
@@ -375,7 +375,7 @@ static ssize_t chk_wakeup_a2220(void)
 			printk(MODULE_NAME "%s : chk_wakeup_a2220  --> get_hw_rev of Target = %d\n", __func__, get_hw_rev());
 			gpio_set_value(pdata->gpio_a2220_wakeup, 0);
 		}
-		msleep(30);
+		msleep(100);
 
 		do {
 			rc = execute_cmdmsg(A100_msg_Sync);
@@ -664,11 +664,11 @@ int execute_cmdmsg(unsigned int msg)
 					rc, retries);
 			continue;
 		}
-#if 0
+#if 1
 		printk(MODULE_NAME "%s : execute_cmdmsg CHK :: %x %x %x %x\n" , __func__, chkbuf[0] , chkbuf[1] , chkbuf[2] , chkbuf[3]);
 		printk(MODULE_NAME "%s : execute_cmdmsg :: %x %x %x %x\n" , __func__, msgbuf[0] , msgbuf[1] , msgbuf[2] , msgbuf[3]);
 #endif
-#if defined(CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_CAN_MODEL_SGH_I577R)
+#ifdef CONFIG_USA_MODEL_SGH_I577
 		static int temp_pass = 0;
 		if (msgbuf[0] == 0x80 && msgbuf[1] == 0x17 && msgbuf[2] == 0x00 && msgbuf[3] == 0x02) {
 			pr_info(MODULE_NAME "%s : 0x%08x set the temp_pass\n", __func__, msg);
@@ -784,7 +784,7 @@ static const struct file_operations a2220_fops = {
 	.owner = THIS_MODULE,
 	.open = a2220_open,
 	.release = a2220_release,
-	.ioctl = a2220_ioctl,
+//temp	.ioctl = a2220_ioctl,
 };
 
 static struct miscdevice a2220_device = {

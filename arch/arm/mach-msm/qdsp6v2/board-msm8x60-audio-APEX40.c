@@ -35,7 +35,7 @@
 #include <linux/i2c/fsa9480.h>
 
 #include <mach/qdsp6v2/audio_dev_ctl.h>
-#include <mach/qdsp6v2/apr_audio.h>
+#include <sound/apr_audio.h>
 #include <mach/mpp.h>
 #include <asm/mach-types.h>
 #include <asm/uaccess.h>
@@ -648,6 +648,7 @@ void msm_snddev_poweramp_off_headset_call(void)
 
 int msm_snddev_poweramp_on_headset(void)
 {
+	fsa9480_audiopath_control(0); /* prevent lineout sound out */
 #ifdef CONFIG_SENSORS_YDA165
 	yda165_headset_onoff(1);
 #endif
@@ -668,7 +669,8 @@ int msm_snddev_vpsamp_on_headset(void)
 	yda165_headset_onoff(1);
 	pr_info("%s: power on amp headset\n", __func__);
 #endif
-	fsa9480_manual_switching(SWITCH_PORT_AUDIO);
+	fsa9480_audiopath_control(1);
+
 	return 0;
 }
 
@@ -678,8 +680,32 @@ void msm_snddev_vpsamp_off_headset(void)
 	yda165_headset_onoff(0);
 	pr_info("%s: power off amp headset\n", __func__);
 #endif
-	fsa9480_manual_switching(SWITCH_PORT_USB);
+	fsa9480_audiopath_control(0);
+
 	return 0;
+}
+
+int msm_snddev_spkvpsamp_on_together(void)
+{
+	pr_info("%s\n", __func__);
+	
+#ifdef CONFIG_SENSORS_YDA165
+	yda165_speaker_headset_onoff(1);
+#endif
+
+	fsa9480_audiopath_control(1);
+	
+	return 0;
+}
+void msm_snddev_spkvpsamp_off_together(void)
+{
+	pr_info("%s\n", __func__);
+	
+#ifdef CONFIG_SENSORS_YDA165
+	yda165_speaker_headset_onoff(0);
+#endif
+	
+	fsa9480_audiopath_control(0);
 }
 
 int msm_snddev_poweramp_on_together(void)
@@ -2615,8 +2641,8 @@ static struct snddev_icodec_data speaker_lineout_rx_data = {
 	.profile = &speaker_lineout_rx_profile,
 	.channel_mode = 2,
 	.default_sample_rate = 48000,
-	.pamp_on = msm_snddev_poweramp_on_together,
-	.pamp_off = msm_snddev_poweramp_off_together,
+	.pamp_on = msm_snddev_spkvpsamp_on_together,
+	.pamp_off = msm_snddev_spkvpsamp_off_together,
 	.voltage_on = msm_snddev_voltage_on,
 	.voltage_off = msm_snddev_voltage_off,
 };
@@ -3918,7 +3944,19 @@ static struct platform_device *snd_devices_celox[] __initdata = {
 	&device_speaker_voip3_rx,
 	&device_speaker_voip3_tx,
 	&device_headset_voip3_rx,
-	&device_headset_voip3_tx
+	&device_headset_voip3_tx,
+	
+	&device_bt_sco_mono_voip3_rx,
+	&device_bt_sco_mono_voip3_tx,
+	&device_bt_sco_mono_nrec_voip3_rx,
+	&device_bt_sco_mono_nrec_voip3_tx,
+	&device_bt_sco_stereo_voip3_rx,
+	&device_bt_sco_stereo_voip3_tx,
+	&device_bt_sco_stereo_nrec_voip3_rx,
+	&device_bt_sco_stereo_nrec_voip3_tx,
+
+	&device_deskdock_voip3_rx,
+	&device_deskdock_voip3_tx
 };
 #endif /* SEC_AUDIO_DEVICE */
 
@@ -5838,6 +5876,8 @@ void __init msm_snddev_init(void)
 	atomic_set(&pamp_ref_cnt, 0);
 	atomic_set(&preg_ref_cnt, 0);
 
+    pr_err("%s \n",	__func__);
+
 	for (i = 0, dev_id = 0; i < ARRAY_SIZE(snd_devices_common); i++)
 		snd_devices_common[i]->id = dev_id++;
 
@@ -5845,14 +5885,14 @@ void __init msm_snddev_init(void)
 			ARRAY_SIZE(snd_devices_common));
 
 	/* Auto detect device base on machine info */
-	if (machine_is_msm8x60_surf() || machine_is_msm8x60_charm_surf()) {
+	if (machine_is_msm8x60_surf() || machine_is_msm8x60_fusion()) {
 		for (i = 0; i < ARRAY_SIZE(snd_devices_surf); i++)
 			snd_devices_surf[i]->id = dev_id++;
 
 		platform_add_devices(snd_devices_surf,
 				ARRAY_SIZE(snd_devices_surf));
 	} else if (machine_is_msm8x60_ffa() ||
-			machine_is_msm8x60_charm_ffa()) {
+			machine_is_msm8x60_fusn_ffa()) {
 #ifdef SEC_AUDIO_DEVICE
 		for (i = 0; i < ARRAY_SIZE(snd_devices_celox); i++)
 			snd_devices_celox[i]->id = dev_id++;

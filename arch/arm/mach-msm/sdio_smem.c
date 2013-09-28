@@ -8,11 +8,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
-
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
- * 02110-1301, USA.
  */
 
 #define pr_fmt(fmt) "%s: " fmt, __func__
@@ -47,7 +42,7 @@ static void sdio_smem_read(struct work_struct *work)
 
 	if (!sdio_ch_opened)
 		return;
-	
+
 	read_avail = sdio_read_avail(channel);
 	if (read_avail > bytes_avail ||
 		read_avail < 0) {
@@ -58,7 +53,7 @@ static void sdio_smem_read(struct work_struct *work)
 
 	if (read_avail == 0)
 		return;
-	
+
 	err = sdio_read(channel,
 			&data[client.size - bytes_avail],
 			read_avail);
@@ -131,7 +126,7 @@ int sdio_smem_unregister_client(void)
 	if (err) {
 		pr_err("sdio_close error (%d)\n", err);
 		return err;
-		}
+	}
 	pr_debug("SDIO SMEM channel closed\n");
 	flush_workqueue(workq);
 	destroy_workqueue(workq);
@@ -139,7 +134,7 @@ int sdio_smem_unregister_client(void)
 	client.buf = NULL;
 	client.cb_func = NULL;
 	client.size = 0;
-	
+
 	return 0;
 }
 

@@ -18,7 +18,7 @@
 #define ENABLE_NOISE_TEST_MODE
 #define TSP_FACTORY_TEST
 #if defined (CONFIG_KOR_MODEL_SHV_E120S) || defined (CONFIG_KOR_MODEL_SHV_E120K) || defined (CONFIG_KOR_MODEL_SHV_E120L) \
-    || defined (CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L) 
+    || defined (CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L)  || defined (CONFIG_JPN_MODEL_SC_05D)
 #define TSP_BOOST
 #else 
 #undef TSP_BOOST
@@ -33,6 +33,7 @@
 #include <linux/input.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
+#include <linux/input/mt.h>
 #include <linux/slab.h>
 #include <linux/platform_device.h>
 #include <linux/melfas_ts.h>
@@ -43,6 +44,8 @@
 
 #include <../mach-msm/smd_private.h>
 #include <../mach-msm/smd_rpcrouter.h>
+
+#undef TOUCH_NON_SLOT
 
 #define TS_MAX_Z_TOUCH			255
 #define TS_MAX_W_TOUCH		100
@@ -60,16 +63,16 @@
 #define TS_READ_REGS_LEN 		66
 #define MELFAS_MAX_TOUCH		11
 
-#define DEBUG_PRINT 			0
+#define DEBUG_PRINT 			1
 
 
 #define SET_DOWNLOAD_BY_GPIO	1
 
 // TSP registors.
-#define MIP_CONTACT_ON_EVENT_THRES	0x05	// (VC25_02, _04 ´Â 110, VC25_03,_05Àº 40)
-#define MIP_MOVING_EVENT_THRES		0x06	// jump limit (ÇöÀç 1, ~ 255°¡´É 1mm 12pixel ÀÔ´Ï´Ù.)
-#define MIP_ACTIVE_REPORT_RATE		0x07	// ´ÜÀ§ hz (default 60,  30~ 255)
-#define MIP_POSITION_FILTER_LEVEL	0x08	// = weight filter (default 40, ±âÁ¸ f/w´Â 80, 1~ 255 °¡´ÉÇÔ)
+#define MIP_CONTACT_ON_EVENT_THRES	0x05	// (VC25_02, _04 ï¿½ï¿½ 110, VC25_03,_05ï¿½ 40)
+#define MIP_MOVING_EVENT_THRES		0x06	// jump limit (ï¿½ï¿½ï¿½ï¿½ 1, ~ 255ï¿½ï¿½ï¿½ï¿½ 1mm 12pixel ï¿½Ô´Ï´ï¿½.)
+#define MIP_ACTIVE_REPORT_RATE		0x07	// ï¿½ï¿½ï¿½ hz (default 60,  30~ 255)
+#define MIP_POSITION_FILTER_LEVEL	0x08	// = weight filter (default 40, ï¿½ï¿½ï¿½ f/wï¿½ï¿½ 80, 1~ 255 ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½)
 
 #define TS_READ_START_ADDR			0x0F
 #define TS_READ_START_ADDR2			0x10
@@ -294,7 +297,6 @@ static void melfas_ts_get_data(struct work_struct *work)
 	if(ts ==NULL)
 			printk(KERN_ERR "%s : TS NULL\n", __func__);
 #endif 
-
 	buf[0] = TS_READ_START_ADDR;
 
 	ret = i2c_master_send(ts->client, buf, 1);
@@ -373,16 +375,30 @@ static void melfas_ts_get_data(struct work_struct *work)
 #ifdef TSP_PATTERN_TRACTKING
 		tsp_pattern_tracking(ts, i, g_Mtouch_info[i].posX, g_Mtouch_info[i].posY);
 #endif
+
+#if TOUCH_NON_SLOT
 		input_report_abs(ts->input_dev, ABS_MT_TRACKING_ID, i);
 		input_report_abs(ts->input_dev, ABS_MT_POSITION_X, g_Mtouch_info[i].posX);
 		input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, g_Mtouch_info[i].posY);
 		input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, g_Mtouch_info[i].strength );
 		input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, g_Mtouch_info[i].width);
 		input_mt_sync(ts->input_dev);
+#else
+		input_mt_slot(ts->input_dev, i); 
+ 		input_mt_report_slot_state(ts->input_dev, 
+ 					MT_TOOL_FINGER, !!g_Mtouch_info[i].strength); 
+    
+ 		if(g_Mtouch_info[i].strength != 0){
+ 			input_report_abs(ts->input_dev, ABS_MT_POSITION_X,  g_Mtouch_info[i].posX); 
+ 			input_report_abs(ts->input_dev, ABS_MT_POSITION_Y,  g_Mtouch_info[i].posY); 
+ 			input_report_abs(ts->input_dev, ABS_MT_PRESSURE,    g_Mtouch_info[i].strength); 
+ 			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, g_Mtouch_info[i].strength); 
+ 		} 
+#endif
 #if DEBUG_PRINT
 		printk(KERN_ERR "[TSP] ID: %d, State : %d, x: %d, y: %d, z: %d w: %d\n", 
 			i, (g_Mtouch_info[i].strength>0), g_Mtouch_info[i].posX, g_Mtouch_info[i].posY, g_Mtouch_info[i].strength, g_Mtouch_info[i].width);
-#endif	
+#endif
 
 		if(g_Mtouch_info[i].strength == 0)
 			g_Mtouch_info[i].strength = -1;
@@ -394,7 +410,7 @@ static void melfas_ts_get_data(struct work_struct *work)
 	input_sync(ts->input_dev);
 	touch_is_pressed = _touch_is_pressed;
 
-	return;
+	return ;
 
 tsp_error:
 	printk(KERN_ERR "[TSP_ERR] %s: i2c failed(%d)\n", __func__, __LINE__);
@@ -549,8 +565,11 @@ ssize_t set_tsp_for_inputmethod_store(struct device *dev, struct device_attribut
 
 static ssize_t tsp_call_release_touch(struct device *dev, struct device_attribute *attr, char *buf)
 {
+	struct melfas_ts_data *ts = dev_get_drvdata(dev);
+
 	printk(" %s is called\n", __func__);
 	TSP_reboot();
+
 	return sprintf(buf,"0\n");
 }
 
@@ -862,8 +881,19 @@ static void check_intensity_data(struct melfas_ts_data *ts)
 		write_buffer[2] = 0x0;
 		write_buffer[3] = 0x0;
 		write_buffer[4] = 0x0;
-		write_buffer[5] = 0x03;
+		write_buffer[5] = 0x01;
+		melfas_i2c_write(ts->client, (char *)write_buffer, 6);
 
+		/* wating for the interrupt*/
+		while (gpio_get_value(gpio)) {
+			printk(".");
+			udelay(100);
+		}
+
+		/* read the dummy data */
+		melfas_i2c_read(ts->client, 0xA8, 2, read_buffer);
+
+		write_buffer[5] = 0x02;
 		for (sensing_line = 0; sensing_line < 14; sensing_line++) {
 			for (exciting_line =0; exciting_line < 26; exciting_line++) {
 				write_buffer[2] = exciting_line;
@@ -874,6 +904,9 @@ static void check_intensity_data(struct melfas_ts_data *ts)
 					(read_buffer[1] & 0xf) << 8 | read_buffer[0];
 			}
 		}
+		melfas_ts_suspend(ts->client, PMSG_SUSPEND);
+		msleep(200);
+		melfas_ts_resume(ts->client);
 	}
 
 	write_buffer[0] = 0xA0;
@@ -1056,13 +1089,25 @@ static void release_all_fingers(struct melfas_ts_data *ts)
 	printk(KERN_ERR "%s %s(%d)\n", __func__, ts->input_dev->name, i);
 
 		g_Mtouch_info[i].strength = 0;
-
+#if TOUCH_NON_SLOT
 		input_report_abs(ts->input_dev, ABS_MT_TRACKING_ID, i);
 		input_report_abs(ts->input_dev, ABS_MT_POSITION_X, g_Mtouch_info[i].posX);
 		input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, g_Mtouch_info[i].posY);
 		input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, g_Mtouch_info[i].strength);
-		input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, g_Mtouch_info[i].strength);
+		input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, g_Mtouch_info[i].width);
 		input_mt_sync(ts->input_dev);
+#else
+		input_mt_slot(ts->input_dev, i); 
+ 		input_mt_report_slot_state(ts->input_dev, 
+ 					MT_TOOL_FINGER, !!g_Mtouch_info[i].strength); 
+    
+ 		if(g_Mtouch_info[i].strength != 0){
+ 			input_report_abs(ts->input_dev, ABS_MT_POSITION_X,  g_Mtouch_info[i].posX); 
+ 			input_report_abs(ts->input_dev, ABS_MT_POSITION_Y,  g_Mtouch_info[i].posY); 
+ 			input_report_abs(ts->input_dev, ABS_MT_PRESSURE,    g_Mtouch_info[i].strength); 
+ 			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, g_Mtouch_info[i].strength); 
+ 		} 
+#endif
 
 		g_Mtouch_info[i].posX = 0;
 		g_Mtouch_info[i].posY = 0;
@@ -1156,12 +1201,14 @@ init_again:
 	printk(KERN_ERR "%s start.\n", __func__);
 #endif
 
+#ifndef CONFIG_USA_MODEL_SGH_I757
     if (!gpio_get_value_cansleep(PM8058_GPIO_PM_TO_SYS(PM8058_GPIO(7))))
     {
         printk(KERN_ERR "%s: No TSP!\n", __func__);
         ret = -ENODEV;
         goto err_check_functionality_failed;
     }
+#endif
 
     if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C))
     {
@@ -1186,10 +1233,22 @@ init_again:
 	ts->register_cb = data->register_cb;
 	ts->read_ta_status = data->read_ta_status;
 #endif
-    ts->client = client;
-    i2c_set_clientdata(client, ts);
+	ts->client = client;
+	i2c_set_clientdata(client, ts);
 	ts->power(true);
-    ret = i2c_master_send(ts->client, &buf, 1);
+	ret = i2c_master_send(ts->client, &buf, 1);
+
+#ifdef CONFIG_USA_MODEL_SGH_I757
+	if (ret < 0){
+		if (!gpio_get_value_cansleep(PM8058_GPIO_PM_TO_SYS(PM8058_GPIO(7)))){
+			printk(KERN_ERR "%s: No TSP!\n", __func__);
+			ts->power(false);
+			kfree(ts);
+			ret = -ENODEV;
+			goto err_check_functionality_failed;
+		}
+	}
+#endif
 
 #if DEBUG_PRINT
 	printk(KERN_ERR "%s: i2c_master_send() [%d], Add[%d]\n", __func__, ret, ts->client->addr);
@@ -1243,19 +1302,23 @@ init_again:
 	ts->input_dev->keybit[BIT_WORD(KEY_BACK)] |= BIT_MASK(KEY_BACK);		
 	ts->input_dev->keybit[BIT_WORD(KEY_SEARCH)] |= BIT_MASK(KEY_SEARCH);			
 
-
-//	__set_bit(BTN_TOUCH, ts->input_dev->keybit);
-//	__set_bit(EV_ABS,  ts->input_dev->evbit);
-//	ts->input_dev->evbit[0] =  BIT_MASK(EV_SYN) | BIT_MASK(EV_ABS) | BIT_MASK(EV_KEY);	
-
+#if TOUCH_NON_SLOT
 	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_X, 0, TS_MAX_X_COORD, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_Y, 0, TS_MAX_Y_COORD, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0, TS_MAX_Z_TOUCH, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_MT_TRACKING_ID, 0, MELFAS_MAX_TOUCH-1, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_MT_WIDTH_MAJOR, 0, TS_MAX_W_TOUCH, 0, 0);
-//	__set_bit(EV_SYN, ts->input_dev->evbit); 
-//	__set_bit(EV_KEY, ts->input_dev->evbit);	
-
+#else
+	set_bit(MT_TOOL_FINGER, ts->input_dev->keybit); 
+ 	set_bit(INPUT_PROP_DIRECT, ts->input_dev->propbit); 
+  
+ 	input_mt_init_slots(ts->input_dev, MELFAS_MAX_TOUCH-1); 
+  
+ 	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_X,  0, TS_MAX_X_COORD, 0, 0);
+ 	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_Y,  0, TS_MAX_Y_COORD, 0, 0);
+ 	input_set_abs_params(ts->input_dev, ABS_MT_PRESSURE,    0, TS_MAX_Z_TOUCH, 0, 0);
+ 	input_set_abs_params(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0, TS_MAX_Z_TOUCH, 0, 0);
+#endif
 
     ret = input_register_device(ts->input_dev);
     if (ret)

@@ -25,6 +25,7 @@
 #include "k3dh_reg.h"
 #include <mach/gpio.h>
 
+
 #define k3dh_dbgmsg(str, args...) pr_debug("%s: " str, __func__, ##args)
 
 /* The default settings when sensor is on is for all 3 axis to be enabled
@@ -75,7 +76,7 @@ struct k3dh_data {
 
 extern struct class *sec_class;
 
-#if defined (CONFIG_KOR_MODEL_SHV_E120L)||defined (CONFIG_KOR_MODEL_SHV_E120S)||defined(CONFIG_KOR_MODEL_SHV_E120K) || defined (CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L)
+#if defined (CONFIG_KOR_MODEL_SHV_E120L)||defined (CONFIG_KOR_MODEL_SHV_E120S)||defined(CONFIG_KOR_MODEL_SHV_E120K)
 #define SENSE_SCL	52
 #define SENSE_SDA	51
 
@@ -108,7 +109,10 @@ static int k3dh_read_accel_raw_xyz(struct k3dh_data *k3dh, struct k3dh_acc *acc)
 }
 
 #if defined (CONFIG_TARGET_LOCALE_KOR) || defined (CONFIG_JPN_MODEL_SC_03D)|| defined(CONFIG_USA_MODEL_SGH_I727)|| defined(CONFIG_USA_MODEL_SGH_T989) \
- || defined(CONFIG_USA_MODEL_SGH_I717) || defined(CONFIG_USA_MODEL_SGH_I757)|| defined (CONFIG_USA_MODEL_SGH_T769) || defined(CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_CAN_MODEL_SGH_I577R) || defined(CONFIG_CAN_MODEL_SGH_I757M)
+ || defined(CONFIG_USA_MODEL_SGH_I717) || defined(CONFIG_EUR_MODEL_GT_I9210) || defined(CONFIG_EUR_MODEL_GT_P7320) || defined(CONFIG_USA_MODEL_SGH_I957) \
+ || defined(CONFIG_USA_MODEL_SGH_I757)|| defined (CONFIG_USA_MODEL_SGH_T769) || defined(CONFIG_USA_MODEL_SGH_I577) \
+ || defined(CONFIG_KOR_MODEL_SHV_E140S)|| defined (CONFIG_KOR_MODEL_SHV_E140K) || defined(CONFIG_KOR_MODEL_SHV_E140L) || defined (CONFIG_TARGET_LOCALE_JPN)
+
 extern unsigned int get_hw_rev(void);
 #endif
 
@@ -129,7 +133,7 @@ static int k3dh_read_accel_xyz(struct k3dh_data *k3dh, struct k3dh_acc *acc)
 	acc->y -= k3dh->cal_data.y;
 	acc->z -= k3dh->cal_data.z;
 
-#if defined (CONFIG_TARGET_LOCALE_KOR)
+#if defined (CONFIG_TARGET_LOCALE_KOR) || defined (CONFIG_TARGET_LOCALE_JPN)
 #if defined (CONFIG_KOR_MODEL_SHV_E110S)
 	if (get_hw_rev() >= 0x06 )
 	{
@@ -152,11 +156,13 @@ static int k3dh_read_accel_xyz(struct k3dh_data *k3dh, struct k3dh_acc *acc)
 	}
 	else		
 #elif defined (CONFIG_KOR_MODEL_SHV_E120S) || defined (CONFIG_KOR_MODEL_SHV_E120K)
+	{
 		s16 temp = acc->x;
 		acc->x = acc->y;
 		acc->y = temp;
 		acc->z = -(acc->z);
-#elif defined (CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L)
+	}
+#elif defined (CONFIG_KOR_MODEL_SHV_E160S) || defined(CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L)	
 	if (get_hw_rev() >= 0x02 )
 	{
 		acc->x = -(acc->x);
@@ -164,7 +170,7 @@ static int k3dh_read_accel_xyz(struct k3dh_data *k3dh, struct k3dh_acc *acc)
 	}
 #endif
 
-#if !defined(CONFIG_KOR_MODEL_SHV_E160S) && !defined (CONFIG_KOR_MODEL_SHV_E160K) && !defined(CONFIG_KOR_MODEL_SHV_E160L)	
+#if !defined(CONFIG_KOR_MODEL_SHV_E160S) && !defined (CONFIG_KOR_MODEL_SHV_E160K) && !defined(CONFIG_KOR_MODEL_SHV_E160L) && !defined (CONFIG_JPN_MODEL_SC_05D)
 	if (get_hw_rev() >= 0x04 )
 	{
 		s16 temp = acc->x;
@@ -185,49 +191,62 @@ static int k3dh_read_accel_xyz(struct k3dh_data *k3dh, struct k3dh_acc *acc)
 		acc->y = (acc->y);
 		acc->z = -(acc->z);
 	}
-#elif defined (CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_CAN_MODEL_SGH_I577R)
+#elif defined(CONFIG_EUR_MODEL_GT_I9210)
+	{
+		s16 temp = acc->x;
+		acc->x = (acc->y);
+		acc->y = temp;
+		acc->z = -(acc->z);
+	}
+#elif defined (CONFIG_USA_MODEL_SGH_I577)
 	{
 		acc->x = -(acc->x);
 		acc->y = -(acc->y);
 	}
-#elif defined (CONFIG_USA_MODEL_SGH_I727) 
+#elif defined (CONFIG_USA_MODEL_SGH_I727)
 	if (get_hw_rev() >= 0x04 ) 
 	{
 		acc->x = -(acc->x);
 		acc->z = -(acc->z);
-	} 
-#elif defined (CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I757M)
-	if (true) 
-	{
-		s16 temp = acc->x;
-		acc->x = -(acc->y);
-		acc->y = (temp);
-		acc->z = (acc->z);
 	}
-#elif defined (CONFIG_USA_MODEL_SGH_I717)  || defined(CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_CAN_MODEL_SGH_I577R)
+#elif defined (CONFIG_USA_MODEL_SGH_I717)
 	if (true) 
 	{
 		s16 temp = acc->x;
 		acc->x = (acc->y);
 		acc->y = (temp);
 		acc->z = -(acc->z);
-	} 
-#elif defined (CONFIG_USA_MODEL_SGH_T769)
-	{
-		acc->x = -(acc->x);
-		acc->y = -(acc->y);
-	}
-#elif defined (CONFIG_USA_MODEL_SGH_T989)
+	}    
+#elif defined (CONFIG_USA_MODEL_SGH_I757)
+	if (true) 
 	{
 		s16 temp = acc->x;
 		acc->x = -(acc->y);
 		acc->y = (temp);
 		acc->z = (acc->z);
 	}
+#elif defined (CONFIG_USA_MODEL_SGH_T769)
+	{
+		acc->x = -(acc->x);
+		acc->y = -(acc->y);
+	}    
+#elif defined (CONFIG_USA_MODEL_SGH_T989)
+	{
+	#if defined(CONFIG_USA_MODEL_SGH_T989D)
+		acc->x = -(acc->x);
+		acc->y = acc->y;
+                acc->z = -(acc->z);
+	#else
+                s16 temp = acc->x;
+                acc->x = -(acc->y);
+                acc->y = (temp);
+                acc->z = (acc->z);	
+	#endif
+	}
 #endif
 
 	/* For Debug */
-	if(k3dh_read_count++ == 50) // each 10 seconds
+	if(k3dh_read_count++ == 500) // each 10 seconds
 	{
 		k3dh_read_count = 0;
 		printk("%s: data=(%d, %d, %d) cal=(%d, %d, %d)\n", __func__, acc->x, acc->y, acc->z, k3dh->cal_data.x, k3dh->cal_data.y, k3dh->cal_data.z);
@@ -362,6 +381,7 @@ static int k3dh_close(struct inode *inode, struct file *file)
 		err = i2c_smbus_write_byte_data(k3dh->client, CTRL_REG1, PM_OFF);
 		k3dh->ctrl_reg1_shadow = PM_OFF;
 	}
+
 	return err;
 }
 
@@ -408,7 +428,7 @@ static int k3dh_set_delay(struct k3dh_data *k3dh, s64 delay_ns)
 		k3dh->ctrl_reg1_shadow = ctrl;
 		res = i2c_smbus_write_byte_data(k3dh->client, CTRL_REG1, ctrl);
 		if(res) {
-			pr_err("[ACC] %s : failed to write CTRL_REG1 res=%d\n", __func__, res);
+			pr_err("%s : failed to write CTRL_REG1 res=%d\n", __func__, res);
 		}
 			
 		k3dh_dbgmsg("writing odr value 0x%x\n", odr_value);
@@ -418,7 +438,7 @@ static int k3dh_set_delay(struct k3dh_data *k3dh, s64 delay_ns)
 }
 
 /*  ioctl command for K3DH device file */
-static int k3dh_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
+static long k3dh_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int err = 0;
 	struct k3dh_data *k3dh = container_of(file->private_data, struct k3dh_data, k3dh_device);
@@ -467,17 +487,17 @@ static int k3dh_suspend(struct device *dev)
 	if(k3dh->power_off)
 		k3dh->power_off();
 
-#if defined (CONFIG_KOR_MODEL_SHV_E120L)||defined (CONFIG_KOR_MODEL_SHV_E120S)||defined(CONFIG_KOR_MODEL_SHV_E120K) ||defined (CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L)
+#if defined (CONFIG_KOR_MODEL_SHV_E120L)||defined (CONFIG_KOR_MODEL_SHV_E120S)||defined(CONFIG_KOR_MODEL_SHV_E120K)
 	if(gpio_free_count != 0){
 		 gpio_direction_input(SENSE_SCL);
 		 gpio_direction_input(SENSE_SDA);
 		 gpio_free(SENSE_SCL);
 		 gpio_free(SENSE_SDA);
 		 gpio_free_count = 0;
-	}
+		}
 	else{
 		gpio_free_count = 1;
-	}
+		}
 #endif
 
 	return 0;
@@ -488,22 +508,17 @@ static int k3dh_resume(struct device *dev)
 	int res = 0;
 	struct k3dh_data *k3dh = dev_get_drvdata(dev);
 
-#if defined (CONFIG_KOR_MODEL_SHV_E120L)||defined (CONFIG_KOR_MODEL_SHV_E120S)||defined(CONFIG_KOR_MODEL_SHV_E120K) ||defined (CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L)
+#if defined (CONFIG_KOR_MODEL_SHV_E120L)||defined (CONFIG_KOR_MODEL_SHV_E120S)||defined(CONFIG_KOR_MODEL_SHV_E120K)
 	if(gpio_request_count == 0){
-		res = gpio_request(SENSE_SCL,"SENSE_SCL");
-		if(res) {
-			pr_err("[ACC] %s : gpio_request SCL failed %d\n", __func__, res);
-		}
-		res = gpio_request(SENSE_SDA,"SENSE_SDA");
-		if(res) {
-			pr_err("[ACC] %s : gpio_request SDA failed %d\n", __func__, res);
-		}
+		gpio_request(SENSE_SCL,"SENSE_SCL");
+		gpio_request(SENSE_SDA,"SENSE_SDA");
 		gpio_request_count =1;
-	}
+		}
 	else{
 		gpio_request_count = 0;
-	}
+		}
 #endif
+
 
 	if(k3dh->power_on)
 		k3dh->power_on();
@@ -524,6 +539,7 @@ static int k3dh_resume(struct device *dev)
 	if (res) {
 		pr_err("[ACC] %s: i2c write ctrl_reg4 failed res=%d\n", __func__, res);
 	}
+
 	return 0;
 }
 
@@ -536,7 +552,7 @@ static const struct file_operations k3dh_fops = {
 	.owner = THIS_MODULE,
 	.open = k3dh_open,
 	.release = k3dh_close,
-	.ioctl = k3dh_ioctl,
+	.unlocked_ioctl = k3dh_ioctl,
 };
 
 static ssize_t k3dh_fs_read(struct device *dev, struct device_attribute *attr, char *buf)
@@ -590,7 +606,8 @@ static ssize_t k3dh_calibration_show(struct device *dev, struct device_attribute
 		pr_err("[ACC] %s: k3dh_open_calibration() failed\n", __func__);
 	if (k3dh->cal_data.x == 0 && k3dh->cal_data.y== 0 && k3dh->cal_data.z == 0)
 		err = -1;
-#if defined(CONFIG_USA_MODEL_SGH_I717) || defined(CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_CAN_MODEL_SGH_I577R) || defined (CONFIG_USA_MODEL_SGH_T769) 
+#if defined(CONFIG_USA_MODEL_SGH_I717) || defined(CONFIG_USA_MODEL_SGH_I577) || defined (CONFIG_USA_MODEL_SGH_T769) ||\
+	defined (CONFIG_USA_MODEL_SGH_T989) || defined (CONFIG_USA_MODEL_SGH_I727) || defined (CONFIG_USA_MODEL_SGH_I757)
 	return sprintf(buf, "%d %d %d %d\n", err, k3dh->cal_data.x, k3dh->cal_data.y, k3dh->cal_data.z);
 #else
 	return sprintf(buf, "%d %d %d\n", k3dh->cal_data.x, k3dh->cal_data.y, k3dh->cal_data.z);
@@ -716,7 +733,7 @@ static int k3dh_probe(struct i2c_client *client,
 	if (err < 0) {
 		pr_err("%s: Failed to create device file2(%s)\n",
 				__func__, dev_attr_acc_hwrev.attr.name);
-		goto err_acc_device_create_hwrevfile;  
+		goto err_acc_device_create_file;  
 	}
 	
 	dev_set_drvdata(dev_t, k3dh);
@@ -744,9 +761,8 @@ static int k3dh_probe(struct i2c_client *client,
 err_cal_device_create_file:
 	device_destroy(sec_class, 0);
 err_cal_device_create:
-	device_remove_file(dev_t, &dev_attr_acc_hwrev);
-err_acc_device_create_hwrevfile:
 	device_remove_file(dev_t, &dev_attr_acc_file);
+	device_remove_file(dev_t, &dev_attr_acc_hwrev);
 err_acc_device_create_file:
 	device_destroy(k3dh->acc_class, MKDEV(ACC_DEV_MAJOR, 0));
 err_acc_device_create:

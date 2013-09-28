@@ -9,11 +9,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
- * 02110-1301, USA.
- *
  */
 #include <linux/debugfs.h>
 #include <linux/delay.h>
@@ -191,11 +186,12 @@ static ssize_t msm_rpm_log_file_read(struct file *file, char __user *bufu,
 	struct msm_rpm_log_buffer *buf;
 
 	buf = file->private_data;
+	if (!buf)
+		return -ENOMEM;
+
 	pdata = buf->pdata;
 	if (!pdata)
 		return -EINVAL;
-	if (!buf)
-		return -ENOMEM;
 	if (!buf->data)
 		return -ENOMEM;
 	if (!bufu || count < 0)

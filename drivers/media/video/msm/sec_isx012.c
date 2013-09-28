@@ -173,7 +173,7 @@ static int isx012_i2c_write_multi_temp(unsigned short addr, unsigned int w_data,
 	unsigned char buf[w_len+2];
 	struct i2c_msg msg = {0x3C, 0, w_len+2, buf};
 
-	int retry_count = 5;
+	int retry_count = 1;	//for Factory test
 	int err = 0;
 
 	if (!isx012_client->adapter) {
@@ -223,7 +223,7 @@ static int isx012_i2c_write_multi(unsigned short addr, unsigned int w_data, unsi
 	unsigned char buf[w_len+2];
 	struct i2c_msg msg = {isx012_client->addr, 0, w_len+2, buf};
 
-	int retry_count = 5;
+	int retry_count = 3;
 	int err = 0;
 
 	if (!isx012_client->adapter) {
@@ -273,7 +273,7 @@ static int isx012_i2c_burst_write_list(isx012_short_t regs[], int size, char *na
 {
 	int i = 0;
 	int iTxDataIndex = 0;
-	int retry_count = 5;
+	int retry_count = 3;
 	int err = 0;
 
 
@@ -704,10 +704,12 @@ static int isx012_get_LowLightCondition()
 	return err;
 }
 
-void isx012_mode_transition_OM(void)
+int isx012_mode_transition_OM(void)
 {
 	int timeout_cnt = 0;
+	int factory_timeout_cnt = 0;
 	int om_status = 0;
+	int ret = 0;
 	short unsigned int r_data[2] = {0,0};
 
 	printk("[isx012] %s/%d\n", __func__, __LINE__);
@@ -718,9 +720,17 @@ void isx012_mode_transition_OM(void)
 			mdelay(1);
 		}
 		timeout_cnt++;
-		isx012_i2c_read_multi(0x000E, r_data, 1);
+		ret = isx012_i2c_read_multi(0x000E, r_data, 1);
 		om_status = r_data[0];
 		//printk("%s [isx012] 0x000E (1) read : 0x%x / om_status & 0x1 : 0x%x(origin:0x1)\n", __func__, om_status, om_status & 0x1);
+		if (ret != 1) {
+			factory_timeout_cnt++;
+			if (factory_timeout_cnt > 5) {
+				pr_info("factory test1 error(%d)\n", ret);
+				return -EIO; /*factory test*/
+			}
+			
+		}
 		if (timeout_cnt > ISX012_DELAY_RETRIES_OM) {
 			pr_err("%s: %d :Entering OM_1 delay timed out \n", __func__, __LINE__);
 			break;
@@ -728,6 +738,11 @@ void isx012_mode_transition_OM(void)
 	} while (((om_status & 0x01) != 0x01));
 
 	timeout_cnt = 0;
+
+	if (ret != 1) {
+		pr_info("factory test2 error(%d)\n", ret);
+		return -EIO; /*factory test*/
+	}
 
 	do {
 		if (timeout_cnt > 0){
@@ -743,6 +758,8 @@ void isx012_mode_transition_OM(void)
 			break;
 		}
 	} while (((om_status & 0x01) != 0x00));
+
+	return 0; /*factory test*/
 }
 
 void isx012_mode_transition_CM(void)
@@ -997,25 +1014,25 @@ static long isx012_set_effect(int8_t value)
 	CAM_DEBUG("%d",value);
 
 	switch (value) {
-		case EFFECT_OFF:
+		case CAMERA_EFFECT_OFF:
 			ISX012_WRITE_LIST(isx012_Effect_Normal);
 			isx012_ctrl->setting.effect = value;
 			err =0;
 			break;
 
-		case EFFECT_SEPIA:
+		case CAMERA_EFFECT_SEPIA:
 			ISX012_WRITE_LIST(isx012_Effect_Sepia);
 			isx012_ctrl->setting.effect = value;
 			err =0;
 			break;
 
-		case EFFECT_MONO:
+		case CAMERA_EFFECT_MONO:
 			ISX012_WRITE_LIST(isx012_Effect_Black_White);
 			isx012_ctrl->setting.effect = value;
 			err =0;
 			break;
 
-		case EFFECT_NEGATIVE:
+		case CAMERA_EFFECT_NEGATIVE:
 			ISX012_WRITE_LIST(ISX012_Effect_Negative);
 			isx012_ctrl->setting.effect = value;
 			err =0;
@@ -1437,83 +1454,82 @@ static int isx012_set_sharpness(int8_t value)
 
 
 
-
 static int  isx012_set_scene(int8_t value)
 {
 	int err = -EINVAL;
 	CAM_DEBUG("%d",value);
 
-	if (value != SCENE_OFF) {
+	if (value != SCENE_MODE_NONE) {
 	     ISX012_WRITE_LIST(isx012_Scene_Default);
 	}
 
 	switch (value) {
-		case SCENE_OFF:
+		case SCENE_MODE_NONE:
 			ISX012_WRITE_LIST(isx012_Scene_Default);
 			err = 0;
 			break;
 
-		case SCENE_PORTRAIT:
+		case SCENE_MODE_PORTRAIT:
 			ISX012_WRITE_LIST(isx012_Scene_Portrait);
 			err = 0;
 			break;
 
-		case SCENE_LANDSCAPE:
+		case SCENE_MODE_LANDSCAPE:
 			ISX012_WRITE_LIST(isx012_Scene_Landscape);
 			err = 0;
 			break;
 
-		case SCENE_SPORTS:
+		case SCENE_MODE_SPORTS:
 			ISX012_WRITE_LIST(isx012_Scene_Sports);
 			err = 0;
 			break;
 
-		case SCENE_PARTY:
+		case SCENE_MODE_PARTY_INDOOR:
 			ISX012_WRITE_LIST(isx012_Scene_Party_Indoor);
 			err = 0;
 			break;
 
-		case SCENE_BEACH:
+		case SCENE_MODE_BEACH_SNOW:
 			ISX012_WRITE_LIST(isx012_Scene_Beach_Snow);
 			err = 0;
 			break;
 
-		case SCENE_SUNSET:
+		case SCENE_MODE_SUNSET:
 			ISX012_WRITE_LIST(isx012_Scene_Sunset);
 			err = 0;
 			break;
 
-		case SCENE_DAWN:
+		case SCENE_MODE_DUSK_DAWN:
 			ISX012_WRITE_LIST(isx012_Scene_Duskdawn);
 			err = 0;
 			break;
 
-		case SCENE_FALL:
+		case SCENE_MODE_FALL_COLOR:
 			ISX012_WRITE_LIST(isx012_Scene_Fall_Color);
 			err = 0;
 			break;
 
-		case SCENE_NIGHTSHOT:
+		case SCENE_MODE_NIGHTSHOT:
 			ISX012_WRITE_LIST(isx012_Scene_Nightshot);
 			err = 0;
 			break;
 
-		case SCENE_BACKLIGHT:
+		case SCENE_MODE_BACK_LIGHT:
 			ISX012_WRITE_LIST(isx012_Scene_Backlight);
 			err = 0;
 			break;
 
-		case SCENE_FIREWORK:
+		case SCENE_MODE_FIREWORKS:
 			ISX012_WRITE_LIST(isx012_Scene_Fireworks);
 			err = 0;
 			break;
 
-		case SCENE_TEXT:
+		case SCENE_MODE_TEXT:
 			ISX012_WRITE_LIST(isx012_Scene_Text);
 			err = 0;
 			break;
 
-		case SCENE_CANDLE:
+		case SCENE_MODE_CANDLE_LIGHT:
 			ISX012_WRITE_LIST(isx012_Scene_Candle_Light);
 			err = 0;
 			break;
@@ -1718,13 +1734,13 @@ static int isx012_cancel_autofocus(void)
 	CAM_DEBUG("E");
 
 	switch (isx012_ctrl->setting.afmode) {
-		case FOCUS_AUTO :
+		case FOCUS_MODE_AUTO :
 			ISX012_WRITE_LIST(ISX012_AF_Cancel_Macro_OFF);
 			ISX012_WRITE_LIST(ISX012_AF_Macro_OFF);
 			ISX012_WRITE_LIST(ISX012_AF_ReStart);
 			break;
 
-		case FOCUS_MACRO :
+		case FOCUS_MODE_MACRO :
 			ISX012_WRITE_LIST(ISX012_AF_Cancel_Macro_ON);
 			ISX012_WRITE_LIST(ISX012_AF_Macro_ON);
 			ISX012_WRITE_LIST(ISX012_AF_ReStart);
@@ -1742,19 +1758,19 @@ static int isx012_cancel_autofocus(void)
 static int isx012_set_focus_mode(int value1, int value2)
 {
 	switch (value1) {
-		case FOCUS_AUTO :
+		case FOCUS_MODE_AUTO :
 			ISX012_WRITE_LIST(ISX012_AF_Macro_OFF);
 			if(value2 == 1) {
 				ISX012_WRITE_LIST(ISX012_AF_ReStart);
-				isx012_ctrl->setting.afmode = FOCUS_AUTO;
+				isx012_ctrl->setting.afmode = FOCUS_MODE_AUTO;
 			}
 			break;
 
-		case FOCUS_MACRO :
+		case FOCUS_MODE_MACRO :
 			ISX012_WRITE_LIST(ISX012_AF_Macro_ON);
 			if(value2 == 1) {
 				ISX012_WRITE_LIST(ISX012_AF_ReStart);
-				isx012_ctrl->setting.afmode = FOCUS_MACRO;
+				isx012_ctrl->setting.afmode = FOCUS_MODE_MACRO;
 			}
 			break;
 
@@ -1917,7 +1933,7 @@ static long isx012_set_sensor_mode(int mode)
 					err = isx012_set_focus_mode(isx012_ctrl->setting.afmode, 0);
 				}else{
 					err = isx012_set_focus_mode(isx012_ctrl->setting.afmode, 0);
-					if (isx012_ctrl->setting.scene == SCENE_NIGHTSHOT)
+					if (isx012_ctrl->setting.scene == SCENE_MODE_NIGHTSHOT)
 						ISX012_WRITE_LIST(ISX012_Lowlux_Night_Reset);
 				}
 				
@@ -2043,7 +2059,7 @@ static long isx012_set_sensor_mode(int mode)
 				isx012_ctrl->status.touchaf = 0;
 			}
 
-			if ((isx012_ctrl->setting.scene == SCENE_NIGHTSHOT) && (gLowLight_check)) {
+			if ((isx012_ctrl->setting.scene == SCENE_MODE_NIGHTSHOT) && (gLowLight_check)) {
 				ISX012_WRITE_LIST(ISX012_Lowlux_Night_Capture_Mode);
 			} else {
 				ISX012_WRITE_LIST(ISX012_Capture_Mode);
@@ -2218,7 +2234,11 @@ static int isx012_sensor_init_probe(const struct msm_camera_sensor_info *data)
 
 	//printk("[isx012] Mode Trandition 1\n");
 
-	isx012_mode_transition_OM();
+	err = isx012_mode_transition_OM();
+	if (err == -EIO) {
+		printk("[isx012] start1 fail!\n");
+		return -EIO;
+	}
 
 	mdelay(10);
 
@@ -2226,7 +2246,11 @@ static int isx012_sensor_init_probe(const struct msm_camera_sensor_info *data)
 	//printk("[isx012] Mode Trandition 2\n");
 
 	mdelay(10);
-	isx012_mode_transition_OM();
+	err = isx012_mode_transition_OM();
+	if (err == -EIO) {
+		printk("[isx012] start2 fail!\n");
+		return -EIO;
+	}
 
 
 	//printk("[isx012] MIPI write\n");
@@ -2241,7 +2265,11 @@ static int isx012_sensor_init_probe(const struct msm_camera_sensor_info *data)
 	//printk("[isx012] CAM_5M_ISP_STNBY : %d\n", temp);
 
 	mdelay(20);
-	isx012_mode_transition_OM();
+	err = isx012_mode_transition_OM();
+	if (err == -EIO) {
+		printk("[isx012] start3 fail!\n");
+		return -EIO;
+	}
 
 	isx012_mode_transition_CM();
 
@@ -2511,7 +2539,7 @@ static int isx012_set_af_start(void)
 			}
 		}while ((half_move_sts[0] != 0x0));
 	} else {
-		if ((isx012_ctrl->setting.scene == SCENE_NIGHTSHOT) && (gLowLight_check)) {
+		if ((isx012_ctrl->setting.scene == SCENE_MODE_NIGHTSHOT) && (gLowLight_check)) {
 			ISX012_WRITE_LIST(ISX012_Lowlux_night_Halfrelease_Mode);
 		} else if ((!isx012_ctrl->status.apps) && (isx012_ctrl->status.start_af > 1)) {
 			if(isx012_ctrl->status.start_af == 2) {
@@ -2633,6 +2661,7 @@ static int isx012_set_touch_auto_focus(int value1)
 	{
 		if (iscapture != 1) {
 			ISX012_WRITE_LIST(ISX012_AF_TouchSAF_OFF);
+			isx012_ctrl->status.touchaf=0;	  /* Have to set Zero, otherwise in Touch AF followed by Shutter AF(long press) , AE and AWB locking will not work */
 
 			//wait 1V time (66ms)
 			mdelay(66);
@@ -2825,7 +2854,7 @@ int isx012_sensor_ext_config(void __user *argp)
 			isx012_ctrl->status.cancel_af_running = 0;
 			if (isx012_ctrl->setting.flash_mode > 0) {
 				err = isx012_get_LowLightCondition();
-			} else if (isx012_ctrl->setting.scene == SCENE_NIGHTSHOT){
+			} else if (isx012_ctrl->setting.scene == SCENE_MODE_NIGHTSHOT){
 				err = isx012_get_LowLightCondition();
 			} else {
 				cam_info("Not Low light check");
@@ -2969,7 +2998,7 @@ int isx012_sensor_release(void)
         }
 #endif
 
-	CAM_DEBUG("E");
+	CAM_DEBUG("X");
 
 	return err;
 
@@ -3078,7 +3107,6 @@ probe_done:
 
 static int __sec_isx012_probe(struct platform_device *pdev)
 {
-	printk("############# __sec_isx012_probe ##############\n");
 	return msm_camera_drv_start(pdev, isx012_sensor_probe);
 }
 

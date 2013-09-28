@@ -1,7 +1,6 @@
 /* include/linux/msm_audio.h
  *
  * Copyright (C) 2008 Google, Inc.
- * Copyright (c) 2009-2010, Code Aurora Forum. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -90,6 +89,15 @@
 					struct msm_acdb_cmd_device)
 #define AUDIO_GET_ACDB_BLK _IOW(AUDIO_IOCTL_MAGIC, 96,  \
 					struct msm_acdb_cmd_device)
+
+#if defined(CONFIG_EUR_MODEL_GT_I9210)
+#define AUDIO_SET_AMR_WB	_IOW(AUDIO_IOCTL_MAGIC, 99, int)
+
+enum A2220_BandType{
+	VPCM_PATH_NARROWBAND = 0x0,
+	VPCM_PATH_WIDEBAND
+};
+#endif
 
 #define	AUDIO_MAX_COMMON_IOCTL_NUM	100
 

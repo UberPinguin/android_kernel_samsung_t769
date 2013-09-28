@@ -13,6 +13,7 @@
 
 #define	CAM_FLASH_EN		62
 #define	CAM_FLASH_SET		63
+#define	VT_CAM_ID		64
 
 #define GPIO_ISP_INT   49
 

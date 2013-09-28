@@ -2550,7 +2550,7 @@ static const u32 s5k5bafx_common[] = {
 	0x0F12000B,
 	/* END of Initial-0719*/
 
-	0xffff0032, //ADD 150ms, kmkim  - 100ms
+//	0xffff0032, //ADD 150ms, kmkim  - 100ms
 };
 
 /* Set-data based on SKT VT standard ,when using 3G network */
@@ -13413,10 +13413,6 @@ static const u32 s5k5bafx_pattern_off[] = {
 
 
 static const u32 s5k5bafx_vflip[] = {
-	0xffff0000,
-};
-
-static const u32 s5k5bafx_vflip_off[] = {
 	0xffff0000,
 };
 

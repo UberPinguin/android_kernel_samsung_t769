@@ -187,14 +187,7 @@ struct taos_data *taos_global;
 struct workqueue_struct *taos_wq;
 struct workqueue_struct *taos_test_wq;
 /* prototype */
-extern short taos_get_proximity_value();
-short IsTaosSensorOn();
-static int proximity_open(struct inode *ip, struct file *fp);
-static int proximity_release(struct inode *ip, struct file *fp);
-static long proximity_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
-static int taos_read_als_data(void);
 int taos_get_lux(void);
-static double StateToLux(state_type state);
 void taos_on(struct taos_data *taos, int type);
 void taos_off(struct taos_data *taos, int type);
 

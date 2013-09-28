@@ -10,11 +10,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
- * 02110-1301, USA.
- *
  */
 #include <linux/module.h>
 #include <linux/fs.h>
@@ -27,15 +22,10 @@
 #include <linux/msm_audio_aac.h>
 #include <asm/atomic.h>
 #include <asm/ioctls.h>
-#include <mach/qdsp6v2/apr_audio.h>
-#include <mach/qdsp6v2/q6asm.h>
+#include <sound/q6asm.h>
+#include <sound/apr_audio.h>
 #include "audio_utils.h"
 
-#if defined (CONFIG_Q1_KOR_AUDIO)
-#define pr_err printk
-#define pr_info printk
-#define pr_dbg printk
-#endif
 
 /* Buffer with meta*/
 #define PCM_BUF_SIZE		(4096 + sizeof(struct meta_in))
@@ -221,6 +211,15 @@ static long aac_in_ioctl(struct file *file,
 		if ((cfg.sample_rate < 8000) && (cfg.sample_rate > 48000)) {
 			pr_err("%s: ERROR in setting samplerate = %d\n",
 				__func__, cfg.sample_rate);
+			rc = -EINVAL;
+			break;
+		}
+		/* For aac-lc, min_bit_rate = min(24Kbps, 0.5*SR*num_chan);
+		max_bi_rate = min(192Kbps, 6*SR*num_chan);
+		min_sample_rate = 8000Hz, max_rate=48000 */
+		if ((cfg.bit_rate < 4000) || (cfg.bit_rate > 192000)) {
+			pr_err("%s: ERROR in setting bitrate = %d\n",
+				__func__, cfg.bit_rate);
 			rc = -EINVAL;
 			break;
 		}

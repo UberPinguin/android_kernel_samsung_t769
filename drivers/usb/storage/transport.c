@@ -284,9 +284,6 @@ static int interpret_urb_result(struct us_data *us, unsigned int pipe,
 		 * a failed command */
 		if (usb_pipecontrol(pipe)) {
 			US_DEBUGP("-- stall on control pipe\n");
-#ifdef CONFIG_USB_SDCARD_DETECT_SEC
-			printk("usb storage -- stall on control pipe\n");
-#endif
 			return USB_STOR_XFER_STALLED;
 		}
 
@@ -299,41 +296,26 @@ static int interpret_urb_result(struct us_data *us, unsigned int pipe,
 	/* babble - the device tried to send more than we wanted to read */
 	case -EOVERFLOW:
 		US_DEBUGP("-- babble\n");
-#ifdef CONFIG_USB_SDCARD_DETECT_SEC
-		printk("usb storage -- babble\n");
-#endif
 		return USB_STOR_XFER_LONG;
 
 	/* the transfer was cancelled by abort, disconnect, or timeout */
 	case -ECONNRESET:
 		US_DEBUGP("-- transfer cancelled\n");
-#ifdef CONFIG_USB_SDCARD_DETECT_SEC
-		printk("usb storage -- transfer cancelled\n");
-#endif
 		return USB_STOR_XFER_ERROR;
 
 	/* short scatter-gather read transfer */
 	case -EREMOTEIO:
 		US_DEBUGP("-- short read transfer\n");
-#ifdef CONFIG_USB_SDCARD_DETECT_SEC
-		printk("usb storage -- short read transfer\n");
-#endif
 		return USB_STOR_XFER_SHORT;
 
 	/* abort or disconnect in progress */
 	case -EIO:
 		US_DEBUGP("-- abort or disconnect in progress\n");
-#ifdef CONFIG_USB_SDCARD_DETECT_SEC
-		printk("usb storage -- abort or disconnect in progress\n");
-#endif
 		return USB_STOR_XFER_ERROR;
 
 	/* the catch-all error case */
 	default:
 		US_DEBUGP("-- unknown error\n");
-#ifdef CONFIG_USB_SDCARD_DETECT_SEC
-		printk("usb storage -- unknown error %d\n", result);
-#endif
 		return USB_STOR_XFER_ERROR;
 	}
 }
@@ -627,9 +609,6 @@ void usb_stor_invoke_transport(struct scsi_cmnd *srb, struct us_data *us)
 	 */
 	if (test_bit(US_FLIDX_TIMED_OUT, &us->dflags)) {
 		US_DEBUGP("-- command was aborted\n");
-#ifdef CONFIG_USB_SDCARD_DETECT_SEC
-		printk("usb storage -- command was aborted\n");
-#endif
 		srb->result = DID_ABORT << 16;
 		goto Handle_Errors;
 	}
@@ -637,9 +616,6 @@ void usb_stor_invoke_transport(struct scsi_cmnd *srb, struct us_data *us)
 	/* if there is a transport error, reset and don't auto-sense */
 	if (result == USB_STOR_TRANSPORT_ERROR) {
 		US_DEBUGP("-- transport indicates error, resetting\n");
-#ifdef CONFIG_USB_SDCARD_DETECT_SEC
-		printk("usb storage -- transport indicates error, resetting\n");
-#endif
 		srb->result = DID_ERROR << 16;
 		goto Handle_Errors;
 	}
@@ -666,7 +642,7 @@ void usb_stor_invoke_transport(struct scsi_cmnd *srb, struct us_data *us)
 	 * unless the operation involved a data-in transfer.  Devices
 	 * can signal most data-in errors by stalling the bulk-in pipe.
 	 */
-	if ((us->protocol == US_PR_CB || us->protocol == US_PR_DPCM_USB) &&
+	if ((us->protocol == USB_PR_CB || us->protocol == USB_PR_DPCM_USB) &&
 			srb->sc_data_direction != DMA_FROM_DEVICE) {
 		US_DEBUGP("-- CB transport device requiring auto-sense\n");
 		need_auto_sense = 1;
@@ -725,8 +701,8 @@ Retry_Sense:
 		scsi_eh_prep_cmnd(srb, &ses, NULL, 0, sense_size);
 
 		/* FIXME: we must do the protocol translation here */
-		if (us->subclass == US_SC_RBC || us->subclass == US_SC_SCSI ||
-				us->subclass == US_SC_CYP_ATACB)
+		if (us->subclass == USB_SC_RBC || us->subclass == USB_SC_SCSI ||
+				us->subclass == USB_SC_CYP_ATACB)
 			srb->cmd_len = 6;
 		else
 			srb->cmd_len = 12;
@@ -740,9 +716,6 @@ Retry_Sense:
 
 		if (test_bit(US_FLIDX_TIMED_OUT, &us->dflags)) {
 			US_DEBUGP("-- auto-sense aborted\n");
-#ifdef CONFIG_USB_SDCARD_DETECT_SEC
-			printk("usb storage -- auto-sense aborted\n");
-#endif
 			srb->result = DID_ABORT << 16;
 
 			/* If SANE_SENSE caused this problem, disable it */
@@ -770,9 +743,6 @@ Retry_Sense:
 		/* Other failures */
 		if (temp_result != USB_STOR_TRANSPORT_GOOD) {
 			US_DEBUGP("-- auto-sense failure\n");
-#ifdef CONFIG_USB_SDCARD_DETECT_SEC
-			printk("usb storage -- auto-sense failure\n");
-#endif
 
 			/* we skip the reset if this happens to be a
 			 * multi-target device, since failure of an
@@ -846,6 +816,35 @@ Retry_Sense:
 				srb->result = DID_ERROR << 16;
 				srb->sense_buffer[2] = HARDWARE_ERROR;
 			}
+		}
+	}
+
+	/*
+	 * Some devices don't work or return incorrect data the first
+	 * time they get a READ(10) command, or for the first READ(10)
+	 * after a media change.  If the INITIAL_READ10 flag is set,
+	 * keep track of whether READ(10) commands succeed.  If the
+	 * previous one succeeded and this one failed, set the REDO_READ10
+	 * flag to force a retry.
+	 */
+	if (unlikely((us->fflags & US_FL_INITIAL_READ10) &&
+			srb->cmnd[0] == READ_10)) {
+		if (srb->result == SAM_STAT_GOOD) {
+			set_bit(US_FLIDX_READ10_WORKED, &us->dflags);
+		} else if (test_bit(US_FLIDX_READ10_WORKED, &us->dflags)) {
+			clear_bit(US_FLIDX_READ10_WORKED, &us->dflags);
+			set_bit(US_FLIDX_REDO_READ10, &us->dflags);
+		}
+
+		/*
+		 * Next, if the REDO_READ10 flag is set, return a result
+		 * code that will cause the SCSI core to retry the READ(10)
+		 * command immediately.
+		 */
+		if (test_bit(US_FLIDX_REDO_READ10, &us->dflags)) {
+			clear_bit(US_FLIDX_REDO_READ10, &us->dflags);
+			srb->result = DID_IMM_RETRY << 16;
+			srb->sense_buffer[0] = 0;
 		}
 	}
 
@@ -956,7 +955,7 @@ int usb_stor_CB_transport(struct scsi_cmnd *srb, struct us_data *us)
 	/* NOTE: CB does not have a status stage.  Silly, I know.  So
 	 * we have to catch this at a higher level.
 	 */
-	if (us->protocol != US_PR_CBI)
+	if (us->protocol != USB_PR_CBI)
 		return USB_STOR_TRANSPORT_GOOD;
 
 	result = usb_stor_intr_transfer(us, us->iobuf, 2);
@@ -972,7 +971,7 @@ int usb_stor_CB_transport(struct scsi_cmnd *srb, struct us_data *us)
 	 * that this means we could be ignoring a real error on these
 	 * commands, but that can't be helped.
 	 */
-	if (us->subclass == US_SC_UFI) {
+	if (us->subclass == USB_SC_UFI) {
 		if (srb->cmnd[0] == REQUEST_SENSE ||
 		    srb->cmnd[0] == INQUIRY)
 			return USB_STOR_TRANSPORT_GOOD;

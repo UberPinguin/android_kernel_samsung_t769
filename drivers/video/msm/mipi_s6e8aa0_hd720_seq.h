@@ -38,7 +38,28 @@ struct dsi_cmd_desc_LCD {
 };
 
 
+#ifdef MAPPING_TBL_AUTO_BRIGHTNESS
+#define CANDELA_TABLE_SIZE 24
+static const unsigned int candela_table[CANDELA_TABLE_SIZE] = {
+	 30,  40,  50,  60,  70,  80,  90, 100, 110, 120,
+	130, 140, 150, 160, 170, 180, 190, 200, 210, 220,
+	230, 240, 250, 300
+};
+#endif
+
+
+#if defined (CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I757M)
 #define MAX_GAMMA_VALUE 25
+#else
+#define MAX_GAMMA_VALUE 24
+#endif
+
+#ifdef MAPPING_TBL_AUTO_BRIGHTNESS
+#undef MAX_GAMMA_VALUE
+#define MAX_GAMMA_VALUE CANDELA_TABLE_SIZE
+#endif
+
+
 
 
 // updated 11.06.28
@@ -195,6 +216,7 @@ static struct dsi_cmd_desc DSI_CMD_GAMMA_7500K_280 = {DTYPE_DCS_LWRITE, 1, 0, 0,
 static struct dsi_cmd_desc DSI_CMD_GAMMA_7500K_290 = {DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(GAMMA_7500K_COND_SET_290), GAMMA_7500K_COND_SET_290};
 static struct dsi_cmd_desc DSI_CMD_GAMMA_7500K_300 = {DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(GAMMA_7500K_COND_SET_300), GAMMA_7500K_COND_SET_300};
 
+#if defined (CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I757M)
 static struct dsi_cmd_desc_LCD lcd_brightness_7500k_table[MAX_GAMMA_VALUE+1] = {
 { 30, "75K", &DSI_CMD_GAMMA_7500K_30},   // 0 = 30_dimming,
 { 40, "75K", &DSI_CMD_GAMMA_7500K_40},   // 1 =  40
@@ -223,6 +245,36 @@ static struct dsi_cmd_desc_LCD lcd_brightness_7500k_table[MAX_GAMMA_VALUE+1] = {
 { 250, "75K",&DSI_CMD_GAMMA_7500K_250},  // 24= 300,
 { 300, "75K",&DSI_CMD_GAMMA_7500K_300}   // 24= 300,
 };
+#else
+static struct dsi_cmd_desc_LCD lcd_brightness_7500k_table[MAX_GAMMA_VALUE+1] = {
+{ 30, "75K", &DSI_CMD_GAMMA_7500K_30},   // 0 = 30_dimming,
+{ 40, "75K", &DSI_CMD_GAMMA_7500K_40},   // 1 =  40
+{ 70, "75K", &DSI_CMD_GAMMA_7500K_70},   // 2 =  70
+//{ 80, "75K", &DSI_CMD_GAMMA_7500K_80},   // 2 =  70
+{ 90, "75K", &DSI_CMD_GAMMA_7500K_90},   //  3 = 90,
+{ 100, "75K",&DSI_CMD_GAMMA_7500K_100},   // 4 = 100,
+{ 110, "75K",&DSI_CMD_GAMMA_7500K_110},   // 5 = 110,
+{ 120, "75K",&DSI_CMD_GAMMA_7500K_120},   // 6 = 120,
+{ 130, "75K",&DSI_CMD_GAMMA_7500K_130},   // 7 = 130,
+{ 140, "75K",&DSI_CMD_GAMMA_7500K_140},   // 8 = 140,
+{ 150, "75K",&DSI_CMD_GAMMA_7500K_150},   // 9 = 150,
+{ 160, "75K",&DSI_CMD_GAMMA_7500K_160},   // 10= 160,
+{ 170, "75K",&DSI_CMD_GAMMA_7500K_170},   // 11= 170,
+{ 180, "75K",&DSI_CMD_GAMMA_7500K_180},   // 12= 180,
+{ 190, "75K",&DSI_CMD_GAMMA_7500K_190},   // 13= 190,
+{ 200, "75K",&DSI_CMD_GAMMA_7500K_200},   // 14= 200,
+{ 210, "75K",&DSI_CMD_GAMMA_7500K_210},   // 15= 210,
+{ 220, "75K",&DSI_CMD_GAMMA_7500K_220},   // 16= 220,
+{ 230, "75K",&DSI_CMD_GAMMA_7500K_230},   // 17= 230,
+{ 240, "75K",&DSI_CMD_GAMMA_7500K_240},   // 18= 240,
+{ 250, "75K",&DSI_CMD_GAMMA_7500K_250},   // 19= 250,
+{ 260, "75K",&DSI_CMD_GAMMA_7500K_260},   // 20= 260,
+{ 270, "75K",&DSI_CMD_GAMMA_7500K_270},   // 21= 270,
+{ 280, "75K",&DSI_CMD_GAMMA_7500K_280},   // 22= 280,
+{ 290, "75K",&DSI_CMD_GAMMA_7500K_290},   // 23= 290,
+{ 300, "75K",&DSI_CMD_GAMMA_7500K_300}   // 24= 300,
+};
+#endif
 
 #define SmartDimming_GammaUpdate_Pos (2)
 static unsigned char GAMMA_SmartDimming_COND_SET[]={ 0xFA, 0x01,	0x4A,	0x01,	0x4D,	0x7A,	0x5D,	0xA5,	0x9C,	0xCA,	0xA4,	0xBD,	0xDC,	0xBE,	0x93,	0xBD,	0x95,	0xBA,	0xD2,	0xB7,	0x00,	0x81,	0x00,	0x75,	0x00,	0xA5,	};	
@@ -254,7 +306,7 @@ const unsigned char GAMMA_SmartDimming_VALUE_SET_A2SM2_300cd[24] = {
 0xBB,0xBE,0xCB,0xBD,0x97,0xA5,0x91,0xAF,
 0xB8,0xAB,0x00,0xC2,0x00,0xBA,0x00,0xE2
 };
-// For A2 line_2. OPM Rev.K
+// For A2 line_2. CELOXHD OPM Rev.K
 const unsigned char GAMMA_SmartDimming_VALUE_SET_A2SM2_300cd_line2[24] = {
 0x41,0x0A,0x47,0xAB,0xBE,0xA8,0xAF,0xC5,
 0xB7,0xC3,0xCC,0xC3,0x9A,0xA3,0x96,0xB1,
@@ -453,6 +505,37 @@ static struct dsi_cmd_desc_LCD lcd_acl_ManualF_table[MAX_GAMMA_VALUE+1] = {
 	{ 55, "mf300", &DSI_CMD_ACL_ManualF_55p}   // 31= 300,
 };
 #else // 11.10.18 HW request
+
+#ifdef MAPPING_TBL_AUTO_BRIGHTNESS
+static struct dsi_cmd_desc_LCD lcd_acl_ManualF_table[MAX_GAMMA_VALUE+1] = {
+	{ 0, "mf30", NULL},   // 1 = 30_dimming,
+	{ 0, "mf40", NULL},   // 2
+	{ 20, "mf50", &DSI_CMD_ACL_ManualF_20p},   
+	{ 33, "mf60", &DSI_CMD_ACL_ManualF_20p},   
+	{ 20, "mf70", &DSI_CMD_ACL_ManualF_20p},   
+    { 40, "mf80", &DSI_CMD_ACL_ManualF_40p},   
+	{ 40, "mf90", &DSI_CMD_ACL_ManualF_33p},   
+	{ 40, "mf100", &DSI_CMD_ACL_ManualF_40p},   
+	{ 40, "mf110", &DSI_CMD_ACL_ManualF_40p},   
+	{ 40, "mf120", &DSI_CMD_ACL_ManualF_40p},   
+	{ 40, "mf130", &DSI_CMD_ACL_ManualF_40p},   
+	{ 40, "mf140", &DSI_CMD_ACL_ManualF_40p},   
+	{ 40, "mf150", &DSI_CMD_ACL_ManualF_40p},   
+	{ 40, "mf160", &DSI_CMD_ACL_ManualF_40p},   
+	{ 40, "mf170", &DSI_CMD_ACL_ManualF_40p},  
+	{ 40, "mf180", &DSI_CMD_ACL_ManualF_40p},   
+	{ 40, "mf190", &DSI_CMD_ACL_ManualF_40p},   
+	{ 40, "mf200", &DSI_CMD_ACL_ManualF_40p},   
+	{ 40, "mf210", &DSI_CMD_ACL_ManualF_40p},   
+	{ 40, "mf220", &DSI_CMD_ACL_ManualF_40p},  
+	{ 40, "mf230", &DSI_CMD_ACL_ManualF_40p},   
+	{ 40, "mf240", &DSI_CMD_ACL_ManualF_40p},   
+	{ 40, "mf250", &DSI_CMD_ACL_ManualF_40p},   
+	{ 50, "mf300", &DSI_CMD_ACL_ManualF_50p}   
+};
+#else
+
+#if defined (CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I757M)
 static struct dsi_cmd_desc_LCD lcd_acl_ManualF_table[MAX_GAMMA_VALUE+1] = {
 	{ 0, "mf30", NULL},   // 1 = 30_dimming,
 	{ 0, "mf40", NULL},   // 4 =  (Normal Range is From 4~31)
@@ -482,8 +565,38 @@ static struct dsi_cmd_desc_LCD lcd_acl_ManualF_table[MAX_GAMMA_VALUE+1] = {
 	{ 40, "mf300", &DSI_CMD_ACL_ManualF_40p},  // 31= 300,
 	{ 50, "mf300", &DSI_CMD_ACL_ManualF_50p}   // 31= 300,	
 };
-
+#else
+static struct dsi_cmd_desc_LCD lcd_acl_ManualF_table[MAX_GAMMA_VALUE+1] = {
+	{ 0, "mf30", NULL},   // 1 = 30_dimming,
+	{ 0, "mf40", NULL},   // 4 =  (Normal Range is From 4~31)
+	{ 40, "mf70", &DSI_CMD_ACL_ManualF_40p},   // 8 =
+	//{ 40, "mf80", &DSI_CMD_ACL_ManualF_40p},   // 8 =
+	{ 40, "mf90", &DSI_CMD_ACL_ManualF_40p},   //  10 = 90,
+	{ 40, "mf100", &DSI_CMD_ACL_ManualF_40p},   // 11 = 100,
+	{ 40, "mf110", &DSI_CMD_ACL_ManualF_40p},   // 12 = 110,
+	{ 40, "mf120", &DSI_CMD_ACL_ManualF_40p},   // 13 = 120,
+	{ 40, "mf130", &DSI_CMD_ACL_ManualF_40p},   // 14 = 130,
+	{ 40, "mf140", &DSI_CMD_ACL_ManualF_40p},   // 15 = 140,
+	{ 40, "mf150", &DSI_CMD_ACL_ManualF_40p},   // 16 = 150,
+	{ 40, "mf160", &DSI_CMD_ACL_ManualF_40p},   // 17= 160,
+	{ 40, "mf170", &DSI_CMD_ACL_ManualF_40p},   // 18= 170,
+	{ 40, "mf180", &DSI_CMD_ACL_ManualF_40p},   // 19= 180,
+	{ 43, "mf190", &DSI_CMD_ACL_ManualF_43p},   // 20= 190,
+	{ 45, "mf200", &DSI_CMD_ACL_ManualF_45p},   // 21= 200,
+	{ 47, "mf210", &DSI_CMD_ACL_ManualF_47p},   // 22= 210, // there's not 47%, use 48%
+	{ 48, "mf220", &DSI_CMD_ACL_ManualF_48p},   // 23= 220,
+	{ 50, "mf230", &DSI_CMD_ACL_ManualF_50p},   // 24= 230,
+	{ 50, "mf240", &DSI_CMD_ACL_ManualF_50p},   // 25= 240,
+	{ 50, "mf250", &DSI_CMD_ACL_ManualF_50p},   // 26= 250,
+	{ 50, "mf260", &DSI_CMD_ACL_ManualF_50p},   // 27= 260,
+	{ 50, "mf270", &DSI_CMD_ACL_ManualF_50p},   // 28= 270,
+	{ 50, "mf280", &DSI_CMD_ACL_ManualF_50p},   // 29= 280,
+	{ 50, "mf290", &DSI_CMD_ACL_ManualF_50p},   // 30= 290,
+	{ 50, "mf300", &DSI_CMD_ACL_ManualF_50p}   // 31= 300,
+};
 #endif 
+#endif 
+#endif
 
 
 #define GET_NORMAL_ELVSS_ID_ADDRESS (2)
@@ -495,8 +608,13 @@ static char ELVSS_COND_SET_160[]=	{ 0xB1, 0x04, 0x95 };
 static struct dsi_cmd_desc DSI_CMD_ELVSS_9Fh= {DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(ELVSS_COND_SET_9Fh), ELVSS_COND_SET_9Fh}; 
 static struct dsi_cmd_desc DSI_CMD_ELVSS_95h= {DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(ELVSS_COND_SET_95h), ELVSS_COND_SET_95h}; 
 static struct dsi_cmd_desc DSI_CMD_ELVSS_8Bh= {DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(ELVSS_COND_SET_8Bh), ELVSS_COND_SET_8Bh}; 
+#if defined (CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I757M)
 
+#ifdef MAPPING_TBL_AUTO_BRIGHTNESS
+static struct dsi_cmd_desc_LCD lcd_elvss_dcdc13_table[CANDELA_TABLE_SIZE+1] = {
+#else
 static struct dsi_cmd_desc_LCD lcd_elvss_dcdc13_table[MAX_GAMMA_VALUE+1] = {
+#endif
 	{ 44, "30", &DSI_CMD_ELVSS_9Fh},   // 1 = 30_dimming,
 	{ 44, "40", &DSI_CMD_ELVSS_9Fh},   // 4 =  (Normal Range is From 4~31)
 	{ 44, "50", &DSI_CMD_ELVSS_9Fh},   // 8 =
@@ -505,7 +623,9 @@ static struct dsi_cmd_desc_LCD lcd_elvss_dcdc13_table[MAX_GAMMA_VALUE+1] = {
 	{ 44, "80", &DSI_CMD_ELVSS_9Fh},   // 11 = 100,
 	{ 44, "90", &DSI_CMD_ELVSS_9Fh},   // 12 = 110,
 	{ 44, "100", &DSI_CMD_ELVSS_9Fh},   // 13 = 120,
+#ifndef MAPPING_TBL_AUTO_BRIGHTNESS
 	{ 44, "105", &DSI_CMD_ELVSS_9Fh},   // 14 = 130,
+#endif
 	{ 44, "110", &DSI_CMD_ELVSS_9Fh},   // 15 = 140,
 	{ 44, "120", &DSI_CMD_ELVSS_9Fh},   // 16 = 150,
 	{ 44, "130", &DSI_CMD_ELVSS_9Fh},   // 17= 160,
@@ -516,7 +636,9 @@ static struct dsi_cmd_desc_LCD lcd_elvss_dcdc13_table[MAX_GAMMA_VALUE+1] = {
 	{ 44, "180", &DSI_CMD_ELVSS_9Fh},   // 22= 210,
 	{ 44, "190", &DSI_CMD_ELVSS_9Fh},   // 23= 220,
 	{ 44, "200", &DSI_CMD_ELVSS_9Fh},   // 24= 230,
+#ifndef MAPPING_TBL_AUTO_BRIGHTNESS
 	{ 44, "205", &DSI_CMD_ELVSS_9Fh},   // 25= 240,
+#endif
 	{ 44, "210", &DSI_CMD_ELVSS_95h},   // 26= 250,
 	{ 44, "220", &DSI_CMD_ELVSS_95h},   // 27= 260,
 	{ 44, "230", &DSI_CMD_ELVSS_95h},   // 28= 270,
@@ -525,34 +647,103 @@ static struct dsi_cmd_desc_LCD lcd_elvss_dcdc13_table[MAX_GAMMA_VALUE+1] = {
 	{ 44, "300", &DSI_CMD_ELVSS_95h}   // 31= 300,
 };
 
+#ifdef MAPPING_TBL_AUTO_BRIGHTNESS
+static struct dsi_cmd_desc_LCD lcd_elvss_dcdc03_table[CANDELA_TABLE_SIZE+1] = {
+#else
+static struct dsi_cmd_desc_LCD lcd_elvss_dcdc03_table[MAX_GAMMA_VALUE+1] = {
+#endif
+	{ 44, "30", &DSI_CMD_ELVSS_95h},   
+	{ 44, "40", &DSI_CMD_ELVSS_95h},   
+	{ 44, "50", &DSI_CMD_ELVSS_95h},   
+	{ 44, "60", &DSI_CMD_ELVSS_95h},   
+	{ 44, "70", &DSI_CMD_ELVSS_95h},   
+	{ 44, "80", &DSI_CMD_ELVSS_95h},   
+	{ 44, "90", &DSI_CMD_ELVSS_95h},  
+	{ 44, "100", &DSI_CMD_ELVSS_95h},   
+#ifndef MAPPING_TBL_AUTO_BRIGHTNESS
+	{ 44, "105", &DSI_CMD_ELVSS_95h},   
+#endif
+	{ 44, "110", &DSI_CMD_ELVSS_95h},   
+	{ 44, "120", &DSI_CMD_ELVSS_95h},   
+	{ 44, "130", &DSI_CMD_ELVSS_95h},   
+	{ 44, "140", &DSI_CMD_ELVSS_95h},   
+	{ 44, "150", &DSI_CMD_ELVSS_95h},   
+	{ 44, "160", &DSI_CMD_ELVSS_95h},   
+	{ 44, "170", &DSI_CMD_ELVSS_95h},   
+	{ 44, "180", &DSI_CMD_ELVSS_95h},   
+	{ 44, "190", &DSI_CMD_ELVSS_95h},   
+	{ 44, "200", &DSI_CMD_ELVSS_95h},   
+#ifndef MAPPING_TBL_AUTO_BRIGHTNESS
+	{ 44, "205", &DSI_CMD_ELVSS_95h},   
+#endif
+	{ 44, "210", &DSI_CMD_ELVSS_8Bh},   
+	{ 44, "220", &DSI_CMD_ELVSS_8Bh},   
+	{ 44, "230", &DSI_CMD_ELVSS_8Bh},   
+	{ 44, "240", &DSI_CMD_ELVSS_8Bh},   
+	{ 44, "250", &DSI_CMD_ELVSS_8Bh},   
+	{ 44, "300", &DSI_CMD_ELVSS_8Bh}   
+};
+
+#else
+static struct dsi_cmd_desc_LCD lcd_elvss_dcdc13_table[MAX_GAMMA_VALUE+1] = {
+	{ 44, "30", &DSI_CMD_ELVSS_9Fh},   // 1 = 30_dimming,
+	{ 44, "40", &DSI_CMD_ELVSS_9Fh},   // 4 =  (Normal Range is From 4~31)
+	{ 44, "70", &DSI_CMD_ELVSS_9Fh},   // 8 =
+//	{ 44, "80", &DSI_CMD_ELVSS_9Fh},   // 8 =
+	{ 44, "90", &DSI_CMD_ELVSS_9Fh},   //  10 = 90,
+	{ 44, "100", &DSI_CMD_ELVSS_9Fh},   // 11 = 100,
+	{ 44, "110", &DSI_CMD_ELVSS_9Fh},   // 12 = 110,
+	{ 44, "120", &DSI_CMD_ELVSS_9Fh},   // 13 = 120,
+	{ 44, "130", &DSI_CMD_ELVSS_9Fh},   // 14 = 130,
+	{ 44, "140", &DSI_CMD_ELVSS_9Fh},   // 15 = 140,
+	{ 44, "150", &DSI_CMD_ELVSS_9Fh},   // 16 = 150,
+	{ 44, "160", &DSI_CMD_ELVSS_9Fh},   // 17= 160,
+	{ 44, "170", &DSI_CMD_ELVSS_9Fh},   // 18= 170,
+	{ 44, "180", &DSI_CMD_ELVSS_9Fh},   // 19= 180,
+	{ 44, "190", &DSI_CMD_ELVSS_9Fh},   // 20= 190,
+	{ 44, "200", &DSI_CMD_ELVSS_9Fh},   // 21= 200,
+	{ 44, "210", &DSI_CMD_ELVSS_95h},   // 22= 210,
+	{ 44, "220", &DSI_CMD_ELVSS_95h},   // 23= 220,
+	{ 44, "230", &DSI_CMD_ELVSS_95h},   // 24= 230,
+	{ 44, "240", &DSI_CMD_ELVSS_95h},   // 25= 240,
+	{ 44, "250", &DSI_CMD_ELVSS_95h},   // 26= 250,
+	{ 44, "260", &DSI_CMD_ELVSS_95h},   // 27= 260,
+	{ 44, "270", &DSI_CMD_ELVSS_95h},   // 28= 270,
+	{ 44, "280", &DSI_CMD_ELVSS_95h},   // 29= 280,
+	{ 44, "290", &DSI_CMD_ELVSS_95h},   // 30= 290,
+	{ 44, "300", &DSI_CMD_ELVSS_95h}   // 31= 300,
+};
+
 static struct dsi_cmd_desc_LCD lcd_elvss_dcdc03_table[MAX_GAMMA_VALUE+1] = {
 	{ 44, "30", &DSI_CMD_ELVSS_95h},   // 1 = 30_dimming,
 	{ 44, "40", &DSI_CMD_ELVSS_95h},   // 4 =  (Normal Range is From 4~31)
-	{ 44, "50", &DSI_CMD_ELVSS_95h},   // 8 =
-	{ 44, "60", &DSI_CMD_ELVSS_95h},   // 8 =
-	{ 44, "70", &DSI_CMD_ELVSS_95h},   //  10 = 90,
-	{ 44, "80", &DSI_CMD_ELVSS_95h},   // 11 = 100,
-	{ 44, "90", &DSI_CMD_ELVSS_95h},   // 12 = 110,
-	{ 44, "100", &DSI_CMD_ELVSS_95h},   // 13 = 120,
-	{ 44, "105", &DSI_CMD_ELVSS_95h},   // 14 = 130,
-	{ 44, "110", &DSI_CMD_ELVSS_95h},   // 15 = 140,
-	{ 44, "120", &DSI_CMD_ELVSS_95h},   // 16 = 150,
-	{ 44, "130", &DSI_CMD_ELVSS_95h},   // 17= 160,
-	{ 44, "140", &DSI_CMD_ELVSS_95h},   // 18= 170,
-	{ 44, "150", &DSI_CMD_ELVSS_95h},   // 19= 180,
-	{ 44, "160", &DSI_CMD_ELVSS_95h},   // 20= 190,
-	{ 44, "170", &DSI_CMD_ELVSS_95h},   // 21= 200,
-	{ 44, "180", &DSI_CMD_ELVSS_95h},   // 22= 210,
-	{ 44, "190", &DSI_CMD_ELVSS_95h},   // 23= 220,
-	{ 44, "200", &DSI_CMD_ELVSS_95h},   // 24= 230,
-	{ 44, "205", &DSI_CMD_ELVSS_95h},   // 25= 240,
-	{ 44, "210", &DSI_CMD_ELVSS_8Bh},   // 26= 250,
-	{ 44, "220", &DSI_CMD_ELVSS_8Bh},   // 27= 260,
-	{ 44, "230", &DSI_CMD_ELVSS_8Bh},   // 28= 270,
-	{ 44, "240", &DSI_CMD_ELVSS_8Bh},   // 29= 280,
-	{ 44, "250", &DSI_CMD_ELVSS_8Bh},   // 30= 290,
+	{ 44, "70", &DSI_CMD_ELVSS_95h},   // 8 =
+//	{ 44, "80", &DSI_CMD_ELVSS_95h},   // 8 =
+	{ 44, "90", &DSI_CMD_ELVSS_95h},   //  10 = 90,
+	{ 44, "100", &DSI_CMD_ELVSS_95h},   // 11 = 100,
+	{ 44, "110", &DSI_CMD_ELVSS_95h},   // 12 = 110,
+	{ 44, "120", &DSI_CMD_ELVSS_95h},   // 13 = 120,
+	{ 44, "130", &DSI_CMD_ELVSS_95h},   // 14 = 130,
+	{ 44, "140", &DSI_CMD_ELVSS_95h},   // 15 = 140,
+	{ 44, "150", &DSI_CMD_ELVSS_95h},   // 16 = 150,
+	{ 44, "160", &DSI_CMD_ELVSS_95h},   // 17= 160,
+	{ 44, "170", &DSI_CMD_ELVSS_95h},   // 18= 170,
+	{ 44, "180", &DSI_CMD_ELVSS_95h},   // 19= 180,
+	{ 44, "190", &DSI_CMD_ELVSS_95h},   // 20= 190,
+	{ 44, "200", &DSI_CMD_ELVSS_95h},   // 21= 200,
+	{ 44, "210", &DSI_CMD_ELVSS_8Bh},   // 22= 210,
+	{ 44, "220", &DSI_CMD_ELVSS_8Bh},   // 23= 220,
+	{ 44, "230", &DSI_CMD_ELVSS_8Bh},   // 24= 230,
+	{ 44, "240", &DSI_CMD_ELVSS_8Bh},   // 25= 240,
+	{ 44, "250", &DSI_CMD_ELVSS_8Bh},   // 26= 250,
+	{ 44, "260", &DSI_CMD_ELVSS_8Bh},   // 27= 260,
+	{ 44, "270", &DSI_CMD_ELVSS_8Bh},   // 28= 270,
+	{ 44, "280", &DSI_CMD_ELVSS_8Bh},   // 29= 280,
+	{ 44, "290", &DSI_CMD_ELVSS_8Bh},   // 30= 290,
 	{ 44, "300", &DSI_CMD_ELVSS_8Bh}   // 31= 300,
 };
+
+#endif
 
 
 #define LCD_ELVSS_DELTA_210_300CD (0)
@@ -567,6 +758,36 @@ static struct dsi_cmd_desc lcd_each_elvss_table[1] = {
 	{DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(EACH_ELVSS_COND_SET), EACH_ELVSS_COND_SET}
 };
 
+
+#ifdef MAPPING_TBL_AUTO_BRIGHTNESS
+static int lcd_elvss_delta_table[CANDELA_TABLE_SIZE+1] = {
+LCD_ELVSS_DELTA_000_100CD, // 0 = 30
+LCD_ELVSS_DELTA_000_100CD, // 1 =  40        
+LCD_ELVSS_DELTA_000_100CD, // 2 =  50       
+LCD_ELVSS_DELTA_000_100CD, //  3 = 60,       
+LCD_ELVSS_DELTA_000_100CD, // 4 = 70,       
+LCD_ELVSS_DELTA_000_100CD, // 5 = 80,       
+LCD_ELVSS_DELTA_000_100CD, // 6 = 90,       
+LCD_ELVSS_DELTA_000_100CD, // 7 = 100,       
+LCD_ELVSS_DELTA_110_160CD, // 8 = 110,		 
+LCD_ELVSS_DELTA_110_160CD, // 9 = 120,       
+LCD_ELVSS_DELTA_110_160CD, // 10 = 130,   
+LCD_ELVSS_DELTA_110_160CD, // 11 = 140,       
+LCD_ELVSS_DELTA_110_160CD, // 12 = 150,       
+LCD_ELVSS_DELTA_110_160CD, // 13= 160,       
+LCD_ELVSS_DELTA_170_200CD, // 14= 170,       
+LCD_ELVSS_DELTA_170_200CD, // 15= 180,       
+LCD_ELVSS_DELTA_170_200CD, // 16= 190,       
+LCD_ELVSS_DELTA_170_200CD, // 17= 200,       
+LCD_ELVSS_DELTA_210_300CD, // 18= 210,       
+LCD_ELVSS_DELTA_210_300CD, // 19= 220,       
+LCD_ELVSS_DELTA_210_300CD, // 20= 230,       
+LCD_ELVSS_DELTA_210_300CD, // 21= 240,       
+LCD_ELVSS_DELTA_210_300CD, // 22= 250,          
+LCD_ELVSS_DELTA_210_300CD // 23= 300,       
+};
+
+#else
 static int lcd_elvss_delta_table[MAX_GAMMA_VALUE+1] = {
 LCD_ELVSS_DELTA_000_100CD, // 0 = 30_dimming,
 LCD_ELVSS_DELTA_000_100CD, // 1 =  40        
@@ -595,5 +816,7 @@ LCD_ELVSS_DELTA_210_300CD, // 22= 280,
 LCD_ELVSS_DELTA_210_300CD, // 23= 290,       
 LCD_ELVSS_DELTA_210_300CD // 24= 300,       
 };
+#endif
+
 
 #endif  /* MIPI_S6E8AA0_HD720_SEQ_H */

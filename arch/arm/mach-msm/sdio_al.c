@@ -8,11 +8,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
- * 02110-1301, USA.
  */
 
 /*
@@ -113,6 +108,7 @@
  *  packet) rx data.
  */
 #define DEFAULT_READ_THRESHOLD  	(1024)
+#define LOW_LATENCY_THRESHOLD		(1)
 
 /* Extra bytes to ensure getting the rx threshold interrupt on stream channels
    when restoring the threshold after sleep */
@@ -123,7 +119,6 @@
 #define DEFAULT_MIN_WRITE_THRESHOLD_STREAMING	(1600)
 
 #define THRESHOLD_DISABLE_VAL  		(0xFFFFFFFF)
-
 
 /** Mailbox polling time for packet channels */
 #define DEFAULT_POLL_DELAY_MSEC		10
@@ -158,31 +153,31 @@
 
 #define SDIO_TEST_POSTFIX "_TEST"
 
-#define DATA_DEBUG(x, y...)	\
-	do {	\
-		if (sdio_al->debug.debug_data_on)	\
-			pr_info(y);		\
-			sdio_al_log(x, y);	\
+#define DATA_DEBUG(x, y...)						\
+	do {								\
+		if (sdio_al->debug.debug_data_on)			\
+			pr_info(y);					\
+		sdio_al_log(x, y);					\
 	} while (0)
 
-#define LPM_DEBUG(x, y...)	\
-	do {	\
-		if (sdio_al->debug.debug_lpm_on)	\
-			pr_info(y);		\
-			sdio_al_log(x, y);	\
-		} while (0)
+#define LPM_DEBUG(x, y...)						\
+	do {								\
+		if (sdio_al->debug.debug_lpm_on)			\
+			pr_info(y);					\
+		sdio_al_log(x, y);					\
+	} while (0)
 
-#define sdio_al_loge(x, y...)	\
-	do {	\
-		pr_err(y);		\
-		sdio_al_log(x, y);		\
-		} while (0) 
+#define sdio_al_loge(x, y...)						\
+	do {								\
+		pr_err(y);						\
+		sdio_al_log(x, y);					\
+	} while (0)
 
-#define sdio_al_logi(x, y...)	\
-	do {	\
-		pr_info(y);		\
-		sdio_al_log(x, y);		\
-		} while (0)
+#define sdio_al_logi(x, y...)						\
+	do {								\
+		pr_info(y);						\
+		sdio_al_log(x, y);					\
+	} while (0)
 
 #define CLOSE_DEBUG(x, y...)						\
 	do {								\
@@ -194,11 +189,7 @@
 /* The index of the SDIO card used for the sdio_al_dloader */
 #define SDIO_BOOTLOADER_CARD_INDEX 1
 
-#if defined (CONFIG_KOR_MODEL_SHV_E110S) || defined (CONFIG_KOR_MODEL_SHV_E120S) || defined (CONFIG_KOR_MODEL_SHV_E120L) \
- ||  defined (CONFIG_KOR_MODEL_SHV_E120K) || defined(CONFIG_KOR_MODEL_SHV_E160S) || defined(CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L) || defined (CONFIG_JPN_MODEL_SC_03D)  \
- || defined (CONFIG_TARGET_LOCALE_USA)
 #define SDIO_AL_FD	1 // fast dormacy for data channel.
-#endif
 
 /* SDIO card state machine */
 enum sdio_al_device_state {
@@ -332,7 +323,7 @@ struct sdio_al_local_log {
 	char buffer[SDIO_AL_DEBUG_LOG_SIZE];
 	unsigned int buf_cur_pos;
 	spinlock_t log_lock;
-	};
+};
 
 #define SDIO_AL_DEBUG_TMP_LOG_SIZE 250
 static int sdio_al_log(struct sdio_al_local_log *, const char *fmt, ...);
@@ -438,7 +429,6 @@ struct sdio_al_device {
 	int bootloader_done;
 
 	struct wake_lock wake_lock;
-	int wakelock_state;
 	int lpm_chan;
 	int is_ok_to_sleep;
 	unsigned long inactivity_time;
@@ -503,6 +493,12 @@ module_param(debug_data_on, int, 0);
  */
 static int debug_close_on = 1;
 module_param(debug_close_on, int, 0);
+
+#if (defined(CONFIG_USA_OPERATOR_ATT) && (defined(CONFIG_TARGET_SERIES_P5LTE) || defined(CONFIG_TARGET_SERIES_P8LTE))) || \
+	(defined(CONFIG_JPN_OPERATOR_NTT) && defined (CONFIG_TARGET_SERIES_P4LTE))
+int mdm_bootloader_done = 0;
+EXPORT_SYMBOL(mdm_bootloader_done);
+#endif
 
 /** The driver context */
 static struct sdio_al *sdio_al;
@@ -574,7 +570,7 @@ struct debugfs_blob_wrapper sdio_al_dbgfs_log[MAX_NUM_OF_SDIO_DEVICES + 1];
 static int sdio_al_debugfs_init(void)
 {
 	int i, blob_errs = 0;
-	
+
 	sdio_al->debug.sdio_al_debug_root = debugfs_create_dir("sdio_al", NULL);
 	if (!sdio_al->debug.sdio_al_debug_root)
 		return -ENOENT;
@@ -610,50 +606,50 @@ static int sdio_al_debugfs_init(void)
 		sdio_al->debug.sdio_al_debug_log_buffers[i] =
 			debugfs_create_blob(temp,
 			S_IRUGO | S_IWUSR |S_IWGRP,
-			sdio_al->debug.sdio_al_debug_root,
-			&sdio_al_dbgfs_log[i]);
-		}
+					sdio_al->debug.sdio_al_debug_root,
+					&sdio_al_dbgfs_log[i]);
+	}
 
 	sdio_al->debug.sdio_al_debug_log_buffers[MAX_NUM_OF_SDIO_DEVICES] =
-		debugfs_create_blob("sdio_al_gen_log",
+			debugfs_create_blob("sdio_al_gen_log",
 		S_IRUGO | S_IWUSR |S_IWGRP,
-		sdio_al->debug.sdio_al_debug_root,
-		&sdio_al_dbgfs_log[MAX_NUM_OF_SDIO_DEVICES]);
-	
+				sdio_al->debug.sdio_al_debug_root,
+				&sdio_al_dbgfs_log[MAX_NUM_OF_SDIO_DEVICES]);
+
 	for (i = 0; i < (MAX_NUM_OF_SDIO_DEVICES + 1); ++i) {
 		if (!sdio_al->debug.sdio_al_debug_log_buffers[i]) {
 			pr_err(MODULE_NAME ": Failed to create debugfs buffer"
-				" entry for "
-				"sdio_al->debug.sdio_al_debug_log_buffers[%d]",
-				i);
+				   " entry for "
+				   "sdio_al->debug.sdio_al_debug_log_buffers[%d]",
+				   i);
 			blob_errs = 1;
-			}
 		}
+	}
 
 	if (blob_errs) {
 		for (i = 0; i < (MAX_NUM_OF_SDIO_DEVICES + 1); ++i)
 			if (sdio_al->debug.sdio_al_debug_log_buffers[i])
 				debugfs_remove(
-				sdio_al->
-				debug.sdio_al_debug_log_buffers[i]);
-			}
-	
+					sdio_al->
+					debug.sdio_al_debug_log_buffers[i]);
+	}
+
 
 	if ((!sdio_al->debug.sdio_al_debug_data_on) &&
 	    (!sdio_al->debug.sdio_al_debug_lpm_on) &&
 	    (!sdio_al->debug.sdio_al_debug_close_on) &&
 	    (!sdio_al->debug.sdio_al_debug_info) &&
-	    blob_errs) {
+		blob_errs) {
 		debugfs_remove(sdio_al->debug.sdio_al_debug_root);
 		sdio_al->debug.sdio_al_debug_root = NULL;
 		return -ENOENT;
 	}
 
 	sdio_al_dbgfs_log[MAX_NUM_OF_SDIO_DEVICES].data =
-		sdio_al->gen_log.buffer;
+						sdio_al->gen_log.buffer;
 	sdio_al_dbgfs_log[MAX_NUM_OF_SDIO_DEVICES].size =
-		SDIO_AL_DEBUG_LOG_SIZE;
-	
+						SDIO_AL_DEBUG_LOG_SIZE;
+
 	return 0;
 }
 
@@ -677,7 +673,7 @@ static void sdio_al_debugfs_cleanup(void)
 extern struct class *sec_class;
 struct device *sdioal_dev;
 
-static void show_waketime(struct device *d,
+static ssize_t show_waketime(struct device *d,
 		struct device_attribute *attr, char *buf)
 {
 	if (!sdioal_dev)
@@ -718,14 +714,14 @@ static int sdio_al_log(struct sdio_al_local_log *log, const char *fmt, ...)
 	static char sdio_al_log_tmp[SDIO_AL_DEBUG_TMP_LOG_SIZE];
 
 	spin_lock_irqsave(&log->log_lock, flags);
-	
+
 	kt = ktime_to_timeval(ktime_get());
 	r = scnprintf(sdio_al_log_tmp, SDIO_AL_DEBUG_TMP_LOG_SIZE,
-		"[%8ld.%6ld] ", kt.tv_sec, kt.tv_usec);
+			"[%8ld.%6ld] ", kt.tv_sec, kt.tv_usec);
 
 	va_start(args, fmt);
 	r += vscnprintf(&sdio_al_log_tmp[r], (SDIO_AL_DEBUG_TMP_LOG_SIZE - r),
-		fmt, args);
+			fmt, args);
 	va_end(args);
 
 	log_buf = log->buffer;
@@ -747,7 +743,7 @@ static int sdio_al_verify_func1(struct sdio_al_device *sdio_al_dev,
 {
 	if (sdio_al_dev == NULL) {
 		sdio_al_loge(&sdio_al->gen_log, MODULE_NAME ": %s: NULL "
-			"sdio_al_dev\n", func);
+				"sdio_al_dev\n", func);
 		return -ENODEV;
 	}
 
@@ -759,12 +755,12 @@ static int sdio_al_verify_func1(struct sdio_al_device *sdio_al_dev,
 
 	if (!sdio_al_dev->card) {
 		sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME ": %s: NULL "
-			"card\n", func);
+				"card\n", func);
 		return -ENODEV;
 	}
 	if (!sdio_al_dev->card->sdio_func[0]) {
 		sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME ": %s: NULL "
-			"func1\n", func);
+				"func1\n", func);
 		return -ENODEV;
 	}
 	return 0;
@@ -797,7 +793,7 @@ static int sdio_al_claim_mutex(struct sdio_al_device *sdio_al_dev,
 }
 
 static int sdio_al_release_mutex(struct sdio_al_device *sdio_al_dev,
-			      char const *func)
+			       char const *func)
 {
 	if (!sdio_al_dev) {
 		sdio_al_loge(&sdio_al->gen_log, MODULE_NAME ": %s: NULL "
@@ -858,7 +854,7 @@ void sdio_al_register_lpm_cb(void *device_handle,
 
 	if (!sdio_al_dev) {
 		sdio_al_loge(&sdio_al->gen_log, MODULE_NAME ": %s - "
-			"device_handle is NULL\n", __func__);
+				"device_handle is NULL\n", __func__);
 		return;
 	}
 
@@ -869,7 +865,7 @@ void sdio_al_register_lpm_cb(void *device_handle,
 	}
 
 	LPM_DEBUG(sdio_al_dev->dev_log, MODULE_NAME ": %s - device %d "
-		"registered for wakeup callback\n", __func__,
+			"registered for wakeup callback\n", __func__,
 			sdio_al_dev->host->index);
 }
 
@@ -880,7 +876,7 @@ void sdio_al_unregister_lpm_cb(void *device_handle)
 
 	if (!sdio_al_dev) {
 		sdio_al_loge(&sdio_al->gen_log, MODULE_NAME ": %s - "
-			"device_handle is NULL\n", __func__);
+				"device_handle is NULL\n", __func__);
 		return;
 	}
 
@@ -897,23 +893,13 @@ static void sdio_al_vote_for_sleep(struct sdio_al_device *sdio_al_dev,
 
 	if (!sdio_al_dev) {
 		sdio_al_loge(&sdio_al->gen_log, MODULE_NAME ": %s - sdio_al_dev"
-			" is NULL\n", __func__);
+				" is NULL\n", __func__);
 		return;
 	}
 
 	if (is_vote_for_sleep) {
 		pr_debug(MODULE_NAME ": %s - sdio vote for Sleep", __func__);
-        //pradeep.ns@samsung.com   checking, whether the sdio device wakelock has been already deleted by the
-        // sdio_al_sdio_remove->wake_lock_destroy->list_del();
-        // If not deleted, then only we are trying to unlock the lock by deleting it
-        if(!((&sdio_al_dev->wake_lock.link.next == LIST_POISON1) && (&sdio_al_dev->wake_lock.link.prev == LIST_POISON2)))      {
-			if(sdio_al_dev->wakelock_state == 1)
-				wake_unlock(&sdio_al_dev->wake_lock);
-		}else
-		{
-			pr_info(MODULE_NAME ":sdio_al_dev->wake_lock has been already destroyed by deleting it..\n");
-		}
-
+		wake_unlock(&sdio_al_dev->wake_lock);
 #ifdef SDIO_AL_FD
 		if((sdio_al->wakelock_time) && (sdio_al_dev->card->host->index == 1))
 			wake_lock_timeout(&sdio_al_dev->wake_lock, (sdio_al->wakelock_time)*HZ);
@@ -927,9 +913,9 @@ static void sdio_al_vote_for_sleep(struct sdio_al_device *sdio_al_dev,
 
 	if (sdio_al_dev->lpm_callback != NULL) {
 		LPM_DEBUG(sdio_al_dev->dev_log, MODULE_NAME ": %s - "
-			"is_vote_for_sleep=%d for card#%d, "
-			"calling callback...", __func__,
-			is_vote_for_sleep,
+				"is_vote_for_sleep=%d for card#%d, "
+				"calling callback...", __func__,
+				is_vote_for_sleep,
 				sdio_al_dev->host->index);
 		sdio_al_dev->lpm_callback((void *)sdio_al_dev,
 					   is_vote_for_sleep);
@@ -942,8 +928,7 @@ static void sdio_al_vote_for_sleep(struct sdio_al_device *sdio_al_dev,
  */
 static int write_lpm_info(struct sdio_al_device *sdio_al_dev)
 {
-	struct sdio_func *lpm_func =
-		sdio_al_dev->card->sdio_func[sdio_al_dev->lpm_chan+1];
+	struct sdio_func *lpm_func = NULL;
 	int offset = offsetof(struct peer_sdioc_sw_mailbox, ch_config)+
 		sizeof(struct peer_sdioc_channel_config) *
 		sdio_al_dev->lpm_chan+
@@ -952,10 +937,18 @@ static int write_lpm_info(struct sdio_al_device *sdio_al_dev)
 
 	if (sdio_al_dev->lpm_chan == INVALID_SDIO_CHAN) {
 		sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME ":Invalid "
-			"lpm_chan for card %d\n",
+				"lpm_chan for card %d\n",
 				sdio_al_dev->host->index);
 		return -EINVAL;
 	}
+
+	if (!sdio_al_dev->card ||
+		!sdio_al_dev->card->sdio_func[sdio_al_dev->lpm_chan+1]) {
+		sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME
+				": NULL card or lpm_func\n");
+		return -ENODEV;
+	}
+	lpm_func = sdio_al_dev->card->sdio_func[sdio_al_dev->lpm_chan+1];
 
 	pr_debug(MODULE_NAME ":write_lpm_info is_ok_to_sleep=%d, device %d\n",
 		 sdio_al_dev->is_ok_to_sleep,
@@ -965,7 +958,7 @@ static int write_lpm_info(struct sdio_al_device *sdio_al_dev)
 				&sdio_al_dev->is_ok_to_sleep, sizeof(u32));
 	if (ret) {
 		sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME ":failed to "
-			"write lpm info for card %d\n",
+				"write lpm info for card %d\n",
 				sdio_al_dev->host->index);
 		return ret;
 	}
@@ -1023,7 +1016,7 @@ static int is_user_irq_enabled(struct sdio_al_device *sdio_al_dev,
 	masked_user_irq = (user_irq >> offset) && 0xFF;
 	if (masked_user_irq == 0x1) {
 		sdio_al_logi(sdio_al_dev->dev_log, MODULE_NAME ":user_irq "
-			"enabled\n");
+				"enabled\n");
 		return 1;
 	}
 
@@ -1044,19 +1037,19 @@ static void sdio_al_sleep(struct sdio_al_device *sdio_al_dev,
 	for (i = 0; i < SDIO_AL_MAX_CHANNELS; i++) {
 		struct sdio_channel *ch = &sdio_al_dev->channel[i];
 		if ((ch->state != SDIO_CHANNEL_STATE_OPEN) &&
-			(ch->state != SDIO_CHANNEL_STATE_CLOSED)) {
+		    (ch->state != SDIO_CHANNEL_STATE_CLOSED)) {
 			pr_debug(MODULE_NAME  ":continue for channel %s in"
 					" state %d\n", ch->name, ch->state);
 			continue;
 		}
 		if (ch->is_packet_mode == false) {
-			ch->read_threshold = 1;
+			ch->read_threshold = LOW_LATENCY_THRESHOLD;
 			set_pipe_threshold(sdio_al_dev,
 					   ch->rx_pipe_index,
 					   ch->read_threshold);
 		}
 	}
-	/*Prevent modem to go to sleep until we get the PROG_DONE on
+	/* Prevent modem to go to sleep until we get the PROG_DONE on
 	   the dummy CMD52 */
 	msmsdcc_set_pwrsave(sdio_al_dev->host, 0);
 	/* Mark HOST_OK_TOSLEEP */
@@ -1065,7 +1058,7 @@ static void sdio_al_sleep(struct sdio_al_device *sdio_al_dev,
 
 	msmsdcc_lpm_enable(host);
 	LPM_DEBUG(sdio_al_dev->dev_log, MODULE_NAME ":Finished sleep sequence"
-		" for card %d. Sleep now.\n",
+			" for card %d. Sleep now.\n",
 		sdio_al_dev->host->index);
 	/* Release wakelock */
 	sdio_al_vote_for_sleep(sdio_al_dev, 1);
@@ -1129,7 +1122,7 @@ static int read_mailbox(struct sdio_al_device *sdio_al_dev, int from_isr)
 	pr_debug(MODULE_NAME ":after sdio_memcpy_fromio.\n");
 	if (ret) {
 		sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME ":Fail to read "
-			"Mailbox for card %d, goto error state\n",
+				"Mailbox for card %d, goto error state\n",
 				sdio_al_dev->host->index);
 		sdio_al_get_into_err_state(sdio_al_dev);
 		goto exit_err;
@@ -1157,9 +1150,9 @@ static int read_mailbox(struct sdio_al_device *sdio_al_dev, int from_isr)
 	   to clear the interrupts but do not process it */
 	if (sdio_al_dev->state != CARD_INSERTED) {
 		sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME ":sdio_al_device"
-			" (card %d) is in invalid state %d\n",
+				" (card %d) is in invalid state %d\n",
 				sdio_al_dev->host->index,
-			sdio_al_dev->state);
+				sdio_al_dev->state);
 		return -ENODEV;
 	}
 
@@ -1184,7 +1177,7 @@ static int read_mailbox(struct sdio_al_device *sdio_al_dev, int from_isr)
 			(read_avail > 0)) {
 			sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME
 				 ":%s: Invalid read_avail 0x%x, for CLOSED ch %s\n",
-				__func__, read_avail, ch->name);
+				 __func__, read_avail, ch->name);
 			sdio_read_from_closed_ch(ch, read_avail);
 		}
 		if ((ch->state != SDIO_CHANNEL_STATE_OPEN) &&
@@ -1220,13 +1213,22 @@ static int read_mailbox(struct sdio_al_device *sdio_al_dev, int from_isr)
 					sdio_al_dev->host->index);
 			}
 			ch->read_avail = read_avail;
-			/* Restore default thresh for non packet channels */
+
+			/*
+			 * Restore default thresh for non packet channels.
+			 * in case it IS low latency channel then read_threshold
+			 * and def_read_threshold are both
+			 * LOW_LATENCY_THRESHOLD
+			 */
 			if ((ch->read_threshold != ch->def_read_threshold) &&
 			    (read_avail >= ch->threshold_change_cnt)) {
-				ch->read_threshold = ch->def_read_threshold;
-				set_pipe_threshold(sdio_al_dev,
-						   ch->rx_pipe_index,
-						   ch->read_threshold);
+				if (!ch->is_low_latency_ch) {
+					ch->read_threshold =
+						ch->def_read_threshold;
+					set_pipe_threshold(sdio_al_dev,
+							   ch->rx_pipe_index,
+							   ch->read_threshold);
+				}
 			}
 		}
 
@@ -1271,7 +1273,7 @@ static int read_mailbox(struct sdio_al_device *sdio_al_dev, int from_isr)
 		   We need to keep reading mailbox to wait for the appropriate
 		   write avail and cannot sleep. Ignore SMEM channel that has
 		   only one direction. */
-		if (strcmp(ch->name, "SDIO_SMEM"))
+		if (strncmp(ch->name, "SDIO_SMEM", CHANNEL_NAME_SIZE))
 			any_write_pending |=
 			(new_write_avail < ch->ch_config.max_tx_threshold);
 	}
@@ -1295,23 +1297,18 @@ static int read_mailbox(struct sdio_al_device *sdio_al_dev, int from_isr)
 
 	if ((rx_notify_bitmask == 0) && (tx_notify_bitmask == 0) &&
 	    !any_read_avail && !any_write_pending) {
-
-#if 0    /* CR00542162 : Block this debug-log as debug_data_on was specified on the kernel command line. */
 		DATA_DEBUG(sdio_al_dev->dev_log, MODULE_NAME ":Nothing to "
 				"Notify for card %d, is_closing=%d\n",
 				sdio_al_dev->host->index, is_closing);
-#endif			   
 		if (is_closing)
 			restart_inactive_time(sdio_al_dev);
 		else if (is_inactive_time_expired(sdio_al_dev))
 			sdio_al_sleep(sdio_al_dev, host);
 	} else {
-#if 0    /* CR00542162 : Block this debug-log as debug_data_on was specified on the kernel command line. */
 		DATA_DEBUG(sdio_al_dev->dev_log, MODULE_NAME ":Notify bitmask"
 				" for card %d rx=0x%x, tx=0x%x.\n",
 				sdio_al_dev->host->index,
 				rx_notify_bitmask, tx_notify_bitmask);
-#endif			   
 		/* Restart inactivity timer if any activity on the channel */
 		restart_inactive_time(sdio_al_dev);
 	}
@@ -1358,7 +1355,7 @@ static u32 check_pending_rx_packet(struct sdio_channel *ch, u32 eot)
 		if ((rx_avail <= rx_pending)) {
 			sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME
 					": Invalid new packet size."
-					    " rx_avail=%d.\n", rx_avail);
+					" rx_avail=%d.\n", rx_avail);
 			new_packet_size = 0;
 			goto exit_err;
 		}
@@ -1369,7 +1366,7 @@ static u32 check_pending_rx_packet(struct sdio_channel *ch, u32 eot)
 					": failed to allocate item for "
 					"rx_pending list. rx_avail=%d, "
 					"rx_pending=%d.\n",
-				   rx_avail, rx_pending);
+					rx_avail, rx_pending);
 			new_packet_size = 0;
 			goto exit_err;
 		}
@@ -1409,7 +1406,7 @@ static u32 remove_handled_rx_packet(struct sdio_channel *ch)
 	} else {
 		sdio_al_loge(ch->sdio_al_dev->dev_log, MODULE_NAME ":%s: ch "
 				"%s: unexpected empty list!!\n",
-			__func__, ch->name);
+				__func__, ch->name);
 	}
 
 	if (list_empty(&ch->rx_size_list_head))	{
@@ -1471,7 +1468,7 @@ static void boot_worker(struct work_struct *work)
 			if (ret) {
 				sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME
 					": sdio_al_client_setup failed, "
-				"for card %d ret=%d\n",
+					"for card %d ret=%d\n",
 					sdio_al_dev->host->index, ret);
 				sdio_al_get_into_err_state(sdio_al_dev);
 			}
@@ -1488,6 +1485,9 @@ static void boot_worker(struct work_struct *work)
 done:
 	pr_debug(MODULE_NAME ":Boot Worker for card %d Exit!\n",
 		sdio_al_dev->host->index);
+#if defined(CONFIG_USA_OPERATOR_ATT) && (defined(CONFIG_TARGET_SERIES_P5LTE) || defined(CONFIG_TARGET_SERIES_P8LTE))
+	mdm_bootloader_done = 1;
+#endif
 }
 
 /**
@@ -1672,8 +1672,8 @@ static int sdio_ch_write(struct sdio_channel *ch, const u8 *buf, u32 len)
 			if (ret != 0) {
 				sdio_al_loge(ch->sdio_al_dev->dev_log,
 					MODULE_NAME ":%s: sdio_memcpy_toio "
-						   "failed for channel %s\n",
-							__func__, ch->name);
+					"failed for channel %s\n",
+					__func__, ch->name);
 				sdio_al_get_into_err_state(ch->sdio_al_dev);
 				return ret;
 			}
@@ -1691,7 +1691,7 @@ static int sdio_ch_write(struct sdio_channel *ch, const u8 *buf, u32 len)
 	if (ret != 0) {
 		sdio_al_loge(ch->sdio_al_dev->dev_log, MODULE_NAME ":%s: "
 				"sdio_write_cmd54 failed for channel %s\n",
-					__func__, ch->name);
+				__func__, ch->name);
 		ch->sdio_al_dev->is_err = true;
 		return ret;
 	}
@@ -1733,7 +1733,7 @@ static int sdio_al_wait_for_bootloader_comp(struct sdio_al_device *sdio_al_dev)
 	if (ret) {
 		sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME
 				": Enable_mask_irq for card %d failed, "
-				   "ret=%d\n",
+				"ret=%d\n",
 				sdio_al_dev->host->index, ret);
 		sdio_al_release_mutex(sdio_al_dev, __func__);
 		return ret;
@@ -1800,28 +1800,30 @@ static int sdio_al_bootloader_setup(void)
 	    (u32) PEER_SDIOC_SW_MAILBOX_BOOT_SIGNATURE) {
 		sdio_al_loge(bootloader_dev->dev_log, MODULE_NAME ":invalid "
 			"mailbox signature 0x%x.\n",
-		       bootloader_dev->sdioc_boot_sw_header->signature);
+			bootloader_dev->sdioc_boot_sw_header->signature);
 		sdio_al_release_mutex(bootloader_dev, __func__);
 		ret = -EINVAL;
 		goto exit_err;
 	}
 
+#if 0		// test code : block version check... lewis.kim 2011.06.19
 	/* Upper byte has to be equal - no backward compatibility for unequal */
 	if ((bootloader_dev->sdioc_boot_sw_header->version >> 16) !=
 	    (sdio_al->pdata->peer_sdioc_boot_version_major)) {
 		sdio_al_loge(bootloader_dev->dev_log, MODULE_NAME ": HOST(0x%x)"
 			" and CLIENT(0x%x) SDIO_AL BOOT VERSION don't match\n",
-		       ((sdio_al->pdata->peer_sdioc_boot_version_major<<16)+
+			((sdio_al->pdata->peer_sdioc_boot_version_major<<16)+
 			sdio_al->pdata->peer_sdioc_boot_version_minor),
-		       bootloader_dev->sdioc_boot_sw_header->version);
+			bootloader_dev->sdioc_boot_sw_header->version);
 		sdio_al_release_mutex(bootloader_dev, __func__);
 		ret = -EIO;
 		goto exit_err;
 	}
+#endif
 
 	sdio_al_logi(bootloader_dev->dev_log, MODULE_NAME ": SDIOC BOOT SW "
 			"version 0x%x\n",
-		bootloader_dev->sdioc_boot_sw_header->version);
+			bootloader_dev->sdioc_boot_sw_header->version);
 
 	bootloader_dev->flashless_boot_on = true;
 
@@ -1831,7 +1833,7 @@ static int sdio_al_bootloader_setup(void)
 	if (ret) {
 		sdio_al_loge(bootloader_dev->dev_log, MODULE_NAME
 				": sdio_al_wait_for_bootloader_comp failed, "
-				   "err=%d\n", ret);
+				"err=%d\n", ret);
 		goto exit_err;
 	}
 
@@ -1891,7 +1893,7 @@ static int read_sdioc_software_header(struct sdio_al_device *sdio_al_dev,
 	if (header->signature == (u32)PEER_SDIOC_SW_MAILBOX_UT_SIGNATURE) {
 		sdio_al_logi(sdio_al_dev->dev_log, MODULE_NAME ":SDIOC SW "
 				"unittest signature. 0x%x\n",
-			header->signature);
+				header->signature);
 		sdio_al->unittest_mode = true;
 		/* Verify test code compatibility with the modem */
 		sdioc_test_version = (header->version & 0xFF00) >> 8;
@@ -1900,8 +1902,8 @@ static int read_sdioc_software_header(struct sdio_al_device *sdio_al_dev,
 			sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME
 				": HOST(0x%x) and CLIENT(0x%x) "
 				"testing VERSION don't match\n",
-			       test_version,
-			       sdioc_test_version);
+				test_version,
+				sdioc_test_version);
 			msleep(500);
 			BUG();
 		}
@@ -1921,10 +1923,10 @@ static int read_sdioc_software_header(struct sdio_al_device *sdio_al_dev,
 		    (sdio_al->sdioc_major != PEER_SDIOC_OLD_VERSION_MAJOR)) {
 			sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME
 				": HOST(0x%x) and CLIENT(0x%x) "
-			       "SDIO_AL VERSION don't match\n",
-			       ((sdio_al->pdata->peer_sdioc_version_major<<16)+
+				"SDIO_AL VERSION don't match\n",
+				((sdio_al->pdata->peer_sdioc_version_major<<16)+
 				sdio_al->pdata->peer_sdioc_version_minor),
-			       header->version);
+				header->version);
 			goto exit_err;
 		}
 	} else {
@@ -1932,10 +1934,10 @@ static int read_sdioc_software_header(struct sdio_al_device *sdio_al_dev,
 		    sdio_al->pdata->peer_sdioc_version_major) {
 			sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME
 				": HOST(0x%x) and CLIENT(0x%x) "
-			       "SDIO_AL VERSION don't match\n",
-			       ((sdio_al->pdata->peer_sdioc_version_major<<16)+
+				"SDIO_AL VERSION don't match\n",
+				((sdio_al->pdata->peer_sdioc_version_major<<16)+
 				sdio_al->pdata->peer_sdioc_version_minor),
-			       header->version);
+				header->version);
 			goto exit_err;
 		}
 	}
@@ -1960,8 +1962,7 @@ static int read_sdioc_software_header(struct sdio_al_device *sdio_al_dev,
 		ch->poll_delay_msec = 0;
 
 		ch->num = i;
-
-		ch->func = sdio_al_dev->card->sdio_func[ch->num+1];
+		ch->func = NULL;
 		ch->rx_pipe_index = ch->num*2;
 		ch->tx_pipe_index = ch->num*2+1;
 
@@ -1976,6 +1977,15 @@ static int read_sdioc_software_header(struct sdio_al_device *sdio_al_dev,
 
 			ch->state = SDIO_CHANNEL_STATE_IDLE;
 			ch->sdio_al_dev = sdio_al_dev;
+			if (sdio_al_dev->card->sdio_func[ch->num+1]) {
+				ch->func =
+				sdio_al_dev->card->sdio_func[ch->num+1];
+			} else {
+				sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME
+					": NULL func for channel %s\n",
+					ch->name);
+				goto exit_err;
+			}
 		} else {
 			ch->state = SDIO_CHANNEL_STATE_INVALID;
 		}
@@ -2037,14 +2047,18 @@ static int read_sdioc_channel_config(struct sdio_channel *ch)
 		goto exit_err;
 	}
 
-	/* Aggregation up to 90% of the maximum size */
-	ch->read_threshold = (ch_config->max_rx_threshold * 9) / 10;
+	ch->read_threshold = LOW_LATENCY_THRESHOLD;
+	ch->is_low_latency_ch = ch_config->is_low_latency_ch;
 	/* Threshold on 50% of the maximum size , sdioc uses double-buffer */
 	ch->write_threshold = (ch_config->max_tx_threshold * 5) / 10;
 	ch->threshold_change_cnt = ch->ch_config.max_rx_threshold -
 			ch->read_threshold + THRESHOLD_CHANGE_EXTRA_BYTES;
 
-	ch->def_read_threshold = ch->read_threshold;
+	if (ch->is_low_latency_ch)
+		ch->def_read_threshold = LOW_LATENCY_THRESHOLD;
+	else /* Aggregation up to 90% of the maximum size */
+		ch->def_read_threshold = (ch_config->max_rx_threshold * 9) / 10;
+
 	ch->is_packet_mode = ch_config->is_packet_mode;
 	if (!ch->is_packet_mode) {
 		ch->poll_delay_msec = DEFAULT_POLL_DELAY_NOPACKET_MSEC;
@@ -2406,13 +2420,13 @@ static void restart_timer(struct sdio_al_device *sdio_al_dev)
  *  Stop and delete the timer
  */
 static void stop_and_del_timer(struct sdio_al_device *sdio_al_dev)
-{  
+{
 	if (sdio_al_dev->is_timer_initialized) {
 		sdio_al_dev->poll_delay_msec = 0;
 		del_timer_sync(&sdio_al_dev->timer);
-    }  
-    }  
- 
+	}
+}
+
 /**
  *  Do the wakup sequence.
  *  This function should be called after claiming the host!
@@ -2645,12 +2659,6 @@ static int sdio_al_setup(struct sdio_al_device *sdio_al_dev)
 	/* Start worker before interrupt might happen */
 	queue_work(sdio_al_dev->workqueue, &sdio_al_dev->sdio_al_work.work);
 
-	if(sdio_al_dev->wakelock_state == 0)
-	{
-		wake_lock_init(&sdio_al_dev->wake_lock, WAKE_LOCK_SUSPEND, MODULE_NAME);
-		sdio_al_dev->wakelock_state = 1;
-	}
-
 	start_inactive_time(sdio_al_dev);
 
 	pr_debug(MODULE_NAME ":Ready.\n");
@@ -2692,15 +2700,15 @@ static void sdio_al_tear_down(void)
 					sdio_al_loge(sdio_al_dev->dev_log,
 						     MODULE_NAME
 							": %s: Invalid func1",
-				       __func__);
-				return;
-			}
-			func1 = sdio_al_dev->card->sdio_func[0];
-			sdio_release_irq(func1);
-			sdio_disable_func(func1);
+							__func__);
+					return;
+				}
+				func1 = sdio_al_dev->card->sdio_func[0];
+				sdio_release_irq(func1);
+				sdio_disable_func(func1);
 				sdio_al_release_mutex(sdio_al_dev, __func__);
+			}
 		}
-	}
 
 		for (j = 0; j < SDIO_AL_MAX_CHANNELS; j++)
 			sdio_al_dev->channel[j].signature = 0x0;
@@ -2733,7 +2741,8 @@ static struct sdio_channel *find_channel_by_name(const char *name)
 			if (sdio_al_dev->channel[i].state ==
 					SDIO_CHANNEL_STATE_INVALID)
 				continue;
-			if (strcmp(sdio_al_dev->channel[i].name, name) == 0) {
+			if (strncmp(sdio_al_dev->channel[i].name, name,
+					CHANNEL_NAME_SIZE) == 0) {
 				ch = &sdio_al_dev->channel[i];
 				break;
 			}
@@ -2836,13 +2845,13 @@ int sdio_open(const char *name, struct sdio_channel **ret_ch, void *priv,
 			if (!ch->is_packet_mode) {
 				sdio_al_logi(sdio_al_dev->dev_log, MODULE_NAME
 						":setting channel %s as "
-						    "lpm_chan\n", name);
+						"lpm_chan\n", name);
 				sdio_al_dev->lpm_chan = ch->num;
 			}
 		} else {
 			sdio_al_logi(sdio_al_dev->dev_log, MODULE_NAME ": "
 					"setting channel %s as lpm_chan\n",
-				name);
+					name);
 			sdio_al_dev->lpm_chan = ch->num;
 		}
 	}
@@ -2864,18 +2873,19 @@ static int peer_set_operation(u32 opcode,
 {
 	int ret;
 	int offset;
-	struct sdio_func *wk_func;
+	struct sdio_func *wk_func = NULL;
 	u32 peer_operation;
 	int loop_count = 0;
 
-	wk_func = sdio_al_dev->card->sdio_func[SDIO_AL_WAKEUP_FUNC-1];
-	if (!wk_func) {
-		sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME ":%s: NULL "
-				"wakeup func:%d\n", __func__,
-				SDIO_AL_WAKEUP_FUNC);
+	if (!sdio_al_dev->card ||
+	    !sdio_al_dev->card->sdio_func[SDIO_AL_WAKEUP_FUNC-1]) {
+		sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME
+				": NULL card or wk_func\n");
 		ret = -ENODEV;
 		goto exit;
 	}
+	wk_func = sdio_al_dev->card->sdio_func[SDIO_AL_WAKEUP_FUNC-1];
+
 	/* calculate offset of peer_operation field in sw mailbox struct */
 	offset = offsetof(struct peer_sdioc_sw_mailbox, ch_config) +
 		sizeof(struct peer_sdioc_channel_config) * ch->num +
@@ -2970,7 +2980,7 @@ static int channel_close(struct sdio_channel *ch, int flush_flag)
 	if (!sdio_al_dev->ch_close_supported) {
 		sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME ":%s: Not "
 			"supported by mdm, ch %s\n",
-				__func__, ch->name);
+			__func__, ch->name);
 		ret = -ENOTSUPP;
 		goto error_exit;
 	}
@@ -2982,9 +2992,9 @@ static int channel_close(struct sdio_channel *ch, int flush_flag)
 	}
 	if (ch->state != SDIO_CHANNEL_STATE_OPEN) {
 		sdio_al_loge(sdio_al_dev->dev_log,
-			MODULE_NAME ":%s: ch %s is not in "
-			"open state (%d)\n",
-			__func__, ch->name, ch->state);
+				MODULE_NAME ":%s: ch %s is not in "
+				"open state (%d)\n",
+				__func__, ch->name, ch->state);
 		ret = -ENODEV;
 		goto error_exit;
 	}
@@ -3012,8 +3022,8 @@ static int channel_close(struct sdio_channel *ch, int flush_flag)
 			while (ch->read_avail > 0) {
 				flush_len = ch->read_avail;
 				ret = sdio_read_internal(ch,
-					sdio_al_dev->rx_flush_buf,
-					flush_len);
+						sdio_al_dev->rx_flush_buf,
+						flush_len);
 				if (ret) {
 					sdio_al_loge(&sdio_al->gen_log,
 						MODULE_NAME ":%s sdio_read"
@@ -3032,26 +3042,26 @@ static int channel_close(struct sdio_channel *ch, int flush_flag)
 					return -EBUSY;
 				}
 			}
-		msleep(100);
-		if (ch->signature != SDIO_AL_SIGNATURE) {
-			sdio_al_loge(&sdio_al->gen_log,
-				MODULE_NAME ":%s: after sleep,"
-				" invalid signature"
-				" 0x%x\n", __func__,
-				ch->signature);
-			return -ENODEV;
-		}
+			msleep(100);
+			if (ch->signature != SDIO_AL_SIGNATURE) {
+					sdio_al_loge(&sdio_al->gen_log,
+						MODULE_NAME ":%s: after sleep,"
+						" invalid signature"
+						" 0x%x\n", __func__,
+						ch->signature);
+				return -ENODEV;
+			}
 			if (sdio_al_claim_mutex_and_verify_dev(ch->sdio_al_dev,
 							       __func__))
-			return -ENODEV;
+				return -ENODEV;
 
-		ret = read_mailbox(sdio_al_dev, false);
-		if (ret) {
-			sdio_al_loge(&sdio_al->gen_log,
-				MODULE_NAME ":%s: failed to"
-				" read mailbox", __func__);
-			goto error_exit;
-		}
+			ret = read_mailbox(sdio_al_dev, false);
+			if (ret) {
+				sdio_al_loge(&sdio_al->gen_log,
+						MODULE_NAME ":%s: failed to"
+						" read mailbox", __func__);
+				goto error_exit;
+			}
 			sdio_al_release_mutex(ch->sdio_al_dev, __func__);
 		} while (ch->read_avail > 0);
 	}
@@ -3068,7 +3078,7 @@ static int channel_close(struct sdio_channel *ch, int flush_flag)
 	}
 	ch->state = SDIO_CHANNEL_STATE_CLOSED;
 	CLOSE_DEBUG(sdio_al_dev->dev_log, MODULE_NAME ":%s: Ch %s closed "
-		"successfully\n", __func__, ch->name);
+				"successfully\n", __func__, ch->name);
 
 error_exit:
 	sdio_al_release_mutex(ch->sdio_al_dev, __func__);
@@ -3077,9 +3087,9 @@ error_exit:
 }
 
 /**
-*  Close SDIO Channel.
-*
-*/
+ *  Close SDIO Channel.
+ *
+ */
 int sdio_close(struct sdio_channel *ch)
 {
 	return channel_close(ch, true);
@@ -3100,7 +3110,7 @@ int sdio_write_avail(struct sdio_channel *ch)
 	if (ch->signature != SDIO_AL_SIGNATURE) {
 		sdio_al_loge(&sdio_al->gen_log, MODULE_NAME ":%s: "
 				"Invalid signature 0x%x\n",  __func__,
-			ch->signature);
+				ch->signature);
 		return -ENODEV;
 	}
 	if (ch->state != SDIO_CHANNEL_STATE_OPEN) {
@@ -3130,7 +3140,7 @@ int sdio_read_avail(struct sdio_channel *ch)
 	if (ch->signature != SDIO_AL_SIGNATURE) {
 		sdio_al_loge(&sdio_al->gen_log, MODULE_NAME ":%s: "
 				"Invalid signature 0x%x\n",  __func__,
-			ch->signature);
+				ch->signature);
 		return -ENODEV;
 	}
 	if (ch->state != SDIO_CHANNEL_STATE_OPEN) {
@@ -3155,23 +3165,23 @@ static int sdio_read_from_closed_ch(struct sdio_channel *ch, int len)
 		sdio_al_loge(ch->sdio_al_dev->dev_log,
 			MODULE_NAME ":%s: NULL channel\n",  __func__);
 		return -ENODEV;
-		}
+	}
 
 	sdio_al_dev = ch->sdio_al_dev;
 	if (sdio_al_claim_mutex_and_verify_dev(sdio_al_dev, __func__))
 		return -ENODEV;
 
 	ret = sdio_memcpy_fromio(ch->func, sdio_al_dev->rx_flush_buf,
-		PIPE_RX_FIFO_ADDR, len);
+				 PIPE_RX_FIFO_ADDR, len);
 
 	if (ret) {
 		sdio_al_loge(ch->sdio_al_dev->dev_log,
-			MODULE_NAME ":ch %s: %s err=%d, len=%d\n",
-			ch->name, __func__, -ret, len);
+				MODULE_NAME ":ch %s: %s err=%d, len=%d\n",
+				ch->name, __func__, -ret, len);
 		sdio_al_dev->is_err = true;
 		sdio_al_release_mutex(sdio_al_dev, __func__);
 		return ret;
-		}
+	}
 
 	restart_inactive_time(sdio_al_dev);
 
@@ -3233,8 +3243,8 @@ static int sdio_read_internal(struct sdio_channel *ch, void *data, int len)
 				" last_any_read_avail=%d, last_read_avail=%d, "
 				"last_old_read_avail=%d", __func__, ch->name,
 				len, ch->statistics.last_any_read_avail,
-		       ch->statistics.last_read_avail,
-		       ch->statistics.last_old_read_avail);
+				ch->statistics.last_read_avail,
+				ch->statistics.last_old_read_avail);
 	}
 	BUG_ON(sdio_al_dev->is_ok_to_sleep);
 
@@ -3242,7 +3252,7 @@ static int sdio_read_internal(struct sdio_channel *ch, void *data, int len)
 			(ch->state != SDIO_CHANNEL_STATE_CLOSING)) {
 		sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME ":%s wrong "
 				"channel %s state %d\n",
-				 __func__, ch->name, ch->state);
+				__func__, ch->name, ch->state);
 		ret = -EINVAL;
 		goto exit;
 	}
@@ -3474,8 +3484,8 @@ static void sdio_al_close_all_channels(struct sdio_al_device *sdio_al_dev)
 			}
 		} else {
 			pr_debug(MODULE_NAME ": %s: skip sdio_close() ch %s"
-				" (state=%d)\n", __func__,
-				ch->name, ch->state);
+					" (state=%d)\n", __func__,
+					ch->name, ch->state);
 		}
 	}
 }
@@ -3502,7 +3512,6 @@ static void sdio_al_modem_reset_operations(struct sdio_al_device
 							*sdio_al_dev)
 {
 	int ret = 0;
-	struct sdio_func *func1 = NULL;
 	struct platform_device *pdev_arr[SDIO_AL_MAX_CHANNELS];
 	int j;
 
@@ -3510,13 +3519,6 @@ static void sdio_al_modem_reset_operations(struct sdio_al_device
 
 	if (sdio_al_claim_mutex_and_verify_dev(sdio_al_dev, __func__))
 		return;
-
-	if (!sdio_al_dev->card || !sdio_al_dev->card->sdio_func[0]) {
-		sdio_al_loge(&sdio_al->gen_log, MODULE_NAME ": %s: "
-			"NULL func1 for card %d", __func__,
-			sdio_al_dev->host->index);
-		goto exit_err;
-	}
 
 	if (sdio_al_dev->state == CARD_REMOVED) {
 		sdio_al_logi(&sdio_al->gen_log, MODULE_NAME ": %s: "
@@ -3537,25 +3539,25 @@ static void sdio_al_modem_reset_operations(struct sdio_al_device
 		__func__, sdio_al_dev->host->index);
 	sdio_al_dev->state = MODEM_RESTART;
 	sdio_al_dev->is_ready = false;
-	
+
 	/* Stop mailbox timer */
 	stop_and_del_timer(sdio_al_dev);
 
 	if ((sdio_al_dev->is_ok_to_sleep) &&
-		(!sdio_al_dev->is_err)) {
+	    (!sdio_al_dev->is_err)) {
 		pr_debug(MODULE_NAME ": %s: wakeup modem for "
-			"card %d", __func__,
+				    "card %d", __func__,
 			sdio_al_dev->host->index);
 		ret = sdio_al_wake_up(sdio_al_dev, 1, NULL);
-		}
+	}
 
-	if (!ret && (!sdio_al_dev->is_err)) {
-		sdio_al_logi(sdio_al_dev->dev_log, MODULE_NAME
+	if (!ret && (!sdio_al_dev->is_err) && sdio_al_dev->card &&
+		sdio_al_dev->card->sdio_func[0]) {
+			sdio_al_logi(sdio_al_dev->dev_log, MODULE_NAME
 			": %s: sdio_release_irq for card %d",
 			__func__,
 			sdio_al_dev->host->index);
-		func1 = sdio_al_dev->card->sdio_func[0];
-		sdio_release_irq(sdio_al_dev->card->sdio_func[0]);
+			sdio_release_irq(sdio_al_dev->card->sdio_func[0]);
 	}
 
 	memset(pdev_arr, 0, sizeof(pdev_arr));
@@ -3593,7 +3595,7 @@ static void sdio_al_reset(void)
 	for (i = 0; i < MAX_NUM_OF_SDIO_DEVICES; i++) {
 		if (sdio_al->devices[i] == NULL) {
 			pr_debug(MODULE_NAME ": %s: NULL device in index %d",
-			__func__, i);
+					__func__, i);
 			continue;
 		}
 		sdio_al_dev = sdio_al->devices[i];
@@ -3610,26 +3612,26 @@ static void msm_sdio_al_shutdown(struct platform_device *pdev)
 	struct sdio_al_device *sdio_al_dev;
 
 	sdio_al_logi(&sdio_al->gen_log, MODULE_NAME
-		"Initiating msm_sdio_al_shutdown...");
+			"Initiating msm_sdio_al_shutdown...");
 
 	for (i = 0; i < MAX_NUM_OF_SDIO_DEVICES; i++) {
 		if (sdio_al->devices[i] == NULL) {
 			pr_debug(MODULE_NAME ": %s: NULL device in index %d",
-				__func__, i);
+					__func__, i);
 			continue;
 		}
-			sdio_al_dev = sdio_al->devices[i];
+		sdio_al_dev = sdio_al->devices[i];
 
 		if (sdio_al_claim_mutex_and_verify_dev(sdio_al_dev, __func__))
 			return;
 
-				if (sdio_al_dev->ch_close_supported)
-					sdio_al_close_all_channels(sdio_al_dev);
+		if (sdio_al_dev->ch_close_supported)
+			sdio_al_close_all_channels(sdio_al_dev);
 
 		sdio_al_release_mutex(sdio_al_dev, __func__);
 
 		sdio_al_modem_reset_operations(sdio_al_dev);
-		}
+	}
 	sdio_al_logi(&sdio_al->gen_log, MODULE_NAME ": %s: "
 		"msm_sdio_al_shutdown complete.", __func__);
 }
@@ -3693,7 +3695,7 @@ static int init_channels(struct sdio_al_device *sdio_al_dev)
 		if (!sdio_al_dev->channel[i].pdev) {
 			sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME
 					":NULL platform device for ch %s",
-			       sdio_al_dev->channel[i].name);
+					sdio_al_dev->channel[i].name);
 			sdio_al_dev->channel[i].state =
 				SDIO_CHANNEL_STATE_INVALID;
 			continue;
@@ -3702,7 +3704,7 @@ static int init_channels(struct sdio_al_device *sdio_al_dev)
 		if (ret) {
 			sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME
 					":platform_device_add failed, "
-					   "ret=%d\n", ret);
+					"ret=%d\n", ret);
 			sdio_al_dev->channel[i].state =
 				SDIO_CHANNEL_STATE_INVALID;
 		}
@@ -3758,7 +3760,7 @@ static int sdio_al_client_setup(struct sdio_al_device *sdio_al_dev)
 		} else {
 			sdio_al_logi(sdio_al_dev->dev_log, MODULE_NAME ":wait "
 					"for bootloader completion "
-					    "on card %d\n",
+					"on card %d\n",
 					sdio_al_dev->host->index);
 			return sdio_al_wait_for_bootloader_comp(sdio_al_dev);
 		}
@@ -3840,7 +3842,7 @@ static int sdio_al_sdio_probe(struct sdio_func *func,
 		if (sdio_al->devices[i]->host == card->host) {
 			sdio_al_dev = sdio_al->devices[i];
 			if (sdio_al_dev->state == CARD_INSERTED)
-			return 0;
+				return 0;
 			clean_sdio_al_device_data(sdio_al_dev);
 			break;
 		}
@@ -3849,12 +3851,12 @@ static int sdio_al_sdio_probe(struct sdio_func *func,
 	if (!sdio_al_dev) {
 		sdio_al_dev = kzalloc(sizeof(struct sdio_al_device),
 				      GFP_KERNEL);
-	if (sdio_al_dev == NULL)
-		return -ENOMEM;
+		if (sdio_al_dev == NULL)
+			return -ENOMEM;
 
-	for (i = 0; i < MAX_NUM_OF_SDIO_DEVICES ; ++i)
-		if (sdio_al->devices[i] == NULL) {
-			sdio_al->devices[i] = sdio_al_dev;
+		for (i = 0; i < MAX_NUM_OF_SDIO_DEVICES ; ++i)
+			if (sdio_al->devices[i] == NULL) {
+				sdio_al->devices[i] = sdio_al_dev;
 				sdio_al_dev->dev_log = &sdio_al->device_log[i];
 				spin_lock_init(&sdio_al_dev->dev_log->log_lock);
 	#ifdef CONFIG_DEBUG_FS
@@ -3863,13 +3865,13 @@ static int sdio_al_sdio_probe(struct sdio_func *func,
 				sdio_al_dbgfs_log[i].size =
 					SDIO_AL_DEBUG_LOG_SIZE;
 	#endif
-			break;
-		}
-	if (i == MAX_NUM_OF_SDIO_DEVICES) {
+				break;
+			}
+		if (i == MAX_NUM_OF_SDIO_DEVICES) {
 			sdio_al_loge(&sdio_al->gen_log, MODULE_NAME ":No space "
 					"in devices array for the device\n");
-		return -ENOMEM;
-	}
+			return -ENOMEM;
+		}
 	}
 
 	dev_info(&card->dev, "SDIO Card claimed.\n");
@@ -3895,35 +3897,33 @@ static int sdio_al_sdio_probe(struct sdio_func *func,
 	if (!sdio_al_dev->mailbox) {
 		sdio_al_dev->mailbox = kzalloc(sizeof(struct sdio_mailbox),
 					       GFP_KERNEL);
-	if (sdio_al_dev->mailbox == NULL)
-		return -ENOMEM;
+		if (sdio_al_dev->mailbox == NULL)
+			return -ENOMEM;
 	}
 
 	if (!sdio_al_dev->sdioc_sw_header) {
-	sdio_al_dev->sdioc_sw_header
+		sdio_al_dev->sdioc_sw_header
 			= kzalloc(sizeof(*sdio_al_dev->sdioc_sw_header),
 				  GFP_KERNEL);
-	if (sdio_al_dev->sdioc_sw_header == NULL)
-		return -ENOMEM;
+		if (sdio_al_dev->sdioc_sw_header == NULL)
+			return -ENOMEM;
 	}
 
 	if (!sdio_al_dev->rx_flush_buf) {
 		sdio_al_dev->rx_flush_buf = kzalloc(RX_FLUSH_BUFFER_SIZE,
 						    GFP_KERNEL);
-	if (sdio_al_dev->rx_flush_buf == NULL) {
-		sdio_al_loge(&sdio_al->gen_log,
+		if (sdio_al_dev->rx_flush_buf == NULL) {
+			sdio_al_loge(&sdio_al->gen_log,
 					MODULE_NAME ":Fail to allocate "
 					   "rx_flush_buf for card %d\n",
-			card->host->index);
-		return -ENOMEM;
+			       card->host->index);
+			return -ENOMEM;
+		}
 	}
-	}
-	
+
 	sdio_al_dev->timer.data = (unsigned long)sdio_al_dev;
 
 	wake_lock_init(&sdio_al_dev->wake_lock, WAKE_LOCK_SUSPEND, MODULE_NAME);
-	sdio_al_dev->wakelock_state = 1;
-	
 	/* Don't allow sleep until all required clients register */
 	sdio_al_vote_for_sleep(sdio_al_dev, 0);
 
@@ -4029,11 +4029,11 @@ static void sdio_al_sdio_remove(struct sdio_func *func)
 	sdio_al_logi(&sdio_al->gen_log, MODULE_NAME ": %s: Notifying SDIO "
 						    "clients for card %d",
 			__func__, sdio_al_dev->host->index);
-		for (i = 0; i < SDIO_AL_MAX_CHANNELS; i++) {
+	for (i = 0; i < SDIO_AL_MAX_CHANNELS; i++) {
 		if (!pdev_arr[i])
-				continue;
+			continue;
 		platform_device_unregister(pdev_arr[i]);
-		}
+	}
 	sdio_al_logi(&sdio_al->gen_log, MODULE_NAME ": %s: Finished Notifying "
 						    "SDIO clients for card %d",
 			__func__, sdio_al_dev->host->index);
@@ -4047,7 +4047,6 @@ static void sdio_al_sdio_remove(struct sdio_func *func)
 	flush_workqueue(sdio_al_dev->workqueue);
 	destroy_workqueue(sdio_al_dev->workqueue);
 	wake_lock_destroy(&sdio_al_dev->wake_lock);
-	sdio_al_dev->wakelock_state = 0;
 
 	sdio_al_logi(&sdio_al->gen_log, MODULE_NAME ":%s: sdio card %d removed."
 			"\n", __func__,	card->host->index);
@@ -4066,7 +4065,7 @@ static void sdio_print_mailbox(char *prefix_str, struct sdio_mailbox *mailbox)
 	}
 
 	sdio_al_loge(&sdio_al->gen_log, MODULE_NAME ": %s: pipes 0_7: eot=0x%x,"
-		"thresh=0x%x, overflow=0x%x, "
+		" thresh=0x%x, overflow=0x%x, "
 		"underflow=0x%x, mask_thresh=0x%x\n",
 		 prefix_str, mailbox->eot_pipe_0_7,
 		 mailbox->thresh_above_limit_pipe_0_7,
@@ -4201,7 +4200,7 @@ static void sdio_al_print_info(void)
 		if (sdio_al_dev->lpm_chan == INVALID_SDIO_CHAN) {
 			sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME
 				": %s - for Card#%d, is lpm_chan=="
-			       "INVALID_SDIO_CHAN. continuing...",
+				"INVALID_SDIO_CHAN. continuing...",
 				__func__, sdio_al_dev->host->index);
 			continue;
 		}
@@ -4216,7 +4215,7 @@ static void sdio_al_print_info(void)
 		if (!lpm_func) {
 			sdio_al_loge(sdio_al_dev->dev_log, MODULE_NAME
 					": %s - lpm_func is NULL for card#%d"
-			       " continuing...\n", __func__,
+					" continuing...\n", __func__,
 					sdio_al_dev->host->index);
 			continue;
 		}
@@ -4366,7 +4365,11 @@ static int __init sdio_al_init(void)
 		goto exit;
 	}
 
-	sdio_register_driver(&sdio_al_sdiofn_driver);
+	ret = sdio_register_driver(&sdio_al_sdiofn_driver);
+	if (ret) {
+		pr_err(MODULE_NAME ": sdio_register_driver failed: %d\n", ret);
+		goto exit;
+	}
 
 	spin_lock_init(&sdio_al->gen_log.log_lock);
 

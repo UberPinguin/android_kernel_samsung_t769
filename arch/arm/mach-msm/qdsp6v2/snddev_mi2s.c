@@ -9,11 +9,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
- * 02110-1301, USA.
- *
  */
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -25,15 +20,9 @@
 #include <asm/uaccess.h>
 #include <mach/board.h>
 #include <mach/qdsp6v2/audio_dev_ctl.h>
-#include <mach/qdsp6v2/apr_audio.h>
-#include <mach/qdsp6v2/q6afe.h>
+#include <sound/q6afe.h>
+#include <sound/apr_audio.h>
 #include "snddev_mi2s.h"
-
-#if defined (CONFIG_Q1_KOR_AUDIO)
-#define pr_err printk
-#define pr_info printk
-#define pr_dbg printk
-#endif
 
 #define SNDDEV_MI2S_PCM_SZ 32 /* 16 bit / sample stereo mode */
 #define SNDDEV_MI2S_MUL_FACTOR 3 /* Multi by 8 Shift by 3  */

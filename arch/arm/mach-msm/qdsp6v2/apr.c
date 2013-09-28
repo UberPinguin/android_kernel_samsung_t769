@@ -8,11 +8,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
- * 02110-1301, USA.
  */
 
 #include <linux/kernel.h>
@@ -35,23 +30,17 @@
 #include <mach/peripheral-loader.h>
 #include <mach/msm_smd.h>
 #include <mach/qdsp6v2/apr.h>
+#include <mach/qdsp6v2/apr_tal.h>
+#include <mach/qdsp6v2/dsp_debug.h>
 #include <mach/subsystem_notif.h>
 #include <mach/subsystem_restart.h>
-#include "apr_tal.h"
-#include "dsp_debug.h"
-
-/* for samsung diamond solution */
 #if defined(CONFIG_KOR_MODEL_SHV_E120L)|| defined(CONFIG_KOR_MODEL_SHV_E160L)
 #define CONFIG_VPCM_INTERFACE_ON_SVLTE2
-#else
-#define CONFIG_VPCM_INTERFACE_ON_CSFB
 #endif
-
-
-#if defined (CONFIG_Q1_KOR_AUDIO)
-#define pr_err printk
-#define pr_info printk
-#define pr_dbg printk
+#if defined(CONFIG_KOR_MODEL_SHV_E110S) || defined(CONFIG_KOR_MODEL_SHV_E120S) || defined(CONFIG_KOR_MODEL_SHV_E120K) || defined(CONFIG_USA_MODEL_SGH_T989) || defined(CONFIG_USA_MODEL_SGH_I727)\
+ || defined(CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_KOR_MODEL_SHV_E160S) || defined(CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_JPN_MODEL_SC_03D)\
+ || defined(CONFIG_USA_MODEL_SGH_T769) || defined(CONFIG_USA_MODEL_SGH_I717) || defined (CONFIG_JPN_MODEL_SC_05D) || defined(CONFIG_KOR_MODEL_SHV_E150S) || defined(CONFIG_JPN_MODEL_SC_01E)
+#define CONFIG_VPCM_INTERFACE_ON_CSFB
 #endif
 
 struct apr_q6 q6;
@@ -123,11 +112,11 @@ int apr_send_pkt(void *handle, uint32_t *buf)
 
 #if defined(CONFIG_VPCM_INTERFACE_ON_CSFB)
 /* BEGIN: VPCM */
-	if ( hdr->opcode == 0x10001001 || hdr->opcode == 0x10001002
+	if ( hdr->opcode == 0x10001001 || hdr->opcode == 0x10001002 
 #ifdef CONFIG_SEC_DHA_SOL_MAL
 	    || hdr->opcode == 0x0001128A
 #endif /* CONFIG_SEC_DHA_SOL_MAL*/
-		)
+       )
 	{
 		hdr->dest_domain = 0x03;
 	    hdr->dest_svc = 0x02;
@@ -253,6 +242,7 @@ static void apr_cb_func(void *buf, int len, void *priv)
 		if (svc == APR_SVC_AFE || svc == APR_SVC_ASM ||
 			svc == APR_SVC_VSM || svc == APR_SVC_VPM ||
 			svc == APR_SVC_ADM || svc == APR_SVC_ADSP_CORE ||
+			svc == APR_SVC_USM ||
 			svc == APR_SVC_TEST_CLIENT || svc == APR_SVC_ADSP_MVM ||
 			svc == APR_SVC_ADSP_CVS || svc == APR_SVC_ADSP_CVP)
 			clnt = APR_CLIENT_AUDIO;
@@ -327,23 +317,23 @@ struct apr_svc *apr_register(char *dest, char *svc_name, apr_fn svc_fn,
 	if ((dest_id == APR_DEST_QDSP6) &&
 				(atomic_read(&dsp_state) == 0)) {
 		pr_info("%s: Wait for Lpass to bootup\n", __func__);
-		rc = wait_event_interruptible(dsp_wait,
-				(atomic_read(&dsp_state) == 1));
-		if (rc < 0) {
+		rc = wait_event_interruptible_timeout(dsp_wait,
+				(atomic_read(&dsp_state) == 1), (1 * HZ));
+		if (rc == 0) {
 			pr_err("%s: DSP is not Up\n", __func__);
 			return NULL;
 		}
-		pr_debug("%s: Lpass Up\n", __func__);
+		pr_info("%s: Lpass Up\n", __func__);
 	} else if ((dest_id == APR_DEST_MODEM) &&
 					(atomic_read(&modem_state) == 0)) {
 		pr_info("%s: Wait for modem to bootup\n", __func__);
-		rc = wait_event_interruptible(modem_wait,
-			(atomic_read(&modem_state) == 1));
-		if (rc < 0) {
+		rc = wait_event_interruptible_timeout(modem_wait,
+			(atomic_read(&modem_state) == 1), (1 * HZ));
+		if (rc == 0) {
 			pr_err("%s: Modem is not Up\n", __func__);
 			return NULL;
 		}
-		pr_debug("%s: modem Up\n", __func__);
+		pr_info("%s: modem Up\n", __func__);
 	}
 
 	if (!strcmp(svc_name, "AFE")) {
@@ -417,6 +407,10 @@ struct apr_svc *apr_register(char *dest, char *svc_name, apr_fn svc_fn,
 		client_id = APR_CLIENT_VOICE;
 		svc_idx = 6;
 		svc_id = APR_SVC_SRD;
+	} else if (!strncmp(svc_name, "USM", 3)) {
+		client_id = APR_CLIENT_AUDIO;
+		svc_idx = 8;
+		svc_id = APR_SVC_USM;
 	} else {
 		pr_err("APR: Wrong svc name\n");
 		goto done;
@@ -462,6 +456,11 @@ struct apr_svc *apr_register(char *dest, char *svc_name, apr_fn svc_fn,
 	if (src_port != 0xFFFFFFFF) {
 		temp_port = ((src_port >> 8) * 8) + (src_port & 0xFF);
 		pr_debug("port = %d t_port = %d\n", src_port, temp_port);
+		if (temp_port >= APR_MAX_PORTS || temp_port < 0) {
+			pr_err("APR: temp_port out of bounds\n");
+			mutex_unlock(&svc->m_lock);
+			return NULL;
+		}
 		if (!svc->port_cnt && !svc->svc_cnt)
 			client[dest_id][client_id].svc_cnt++;
 		svc->port_cnt++;
@@ -492,7 +491,6 @@ static void apr_reset_deregister(struct work_struct *work)
 	pr_debug("%s:handle[%p]\n", __func__, handle);
 	apr_deregister(handle);
 	kfree(apr_reset);
-	msleep(5);
 }
 
 int apr_deregister(void *handle)
@@ -553,14 +551,21 @@ void apr_reset(void *handle)
 		return;
 	pr_debug("%s: handle[%p]\n", __func__, handle);
 
-	apr_reset_worker = kzalloc(sizeof(struct apr_reset_work),
-					GFP_ATOMIC);
-	if (apr_reset_worker == NULL || apr_reset_workqueue == NULL) {
-		pr_err("%s: mem failure\n", __func__);
-		if (apr_reset_worker)
-		  kfree(apr_reset_worker);
+	if (apr_reset_workqueue == NULL) {
+		pr_err("%s: apr_reset_workqueue is NULL\n", __func__);
 		return;
 	}
+
+	apr_reset_worker = kzalloc(sizeof(struct apr_reset_work),
+							GFP_ATOMIC);
+
+	if (apr_reset_worker == NULL) {
+		pr_err("%s: mem failure\n", __func__);
+		if(apr_reset_worker)
+			kfree (apr_reset_worker);		
+		return;
+	}
+
 	apr_reset_worker->handle = handle;
 	INIT_WORK(&apr_reset_worker->work, apr_reset_deregister);
 	queue_work(apr_reset_workqueue, &apr_reset_worker->work);

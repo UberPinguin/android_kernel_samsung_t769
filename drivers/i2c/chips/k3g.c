@@ -55,18 +55,18 @@
 #define WTM_MASK	0x80
 #define ODR_MASK	0xF0
 #define ODR105_BW12_5	0x00  /* ODR = 105Hz; BW = 12.5Hz */
-#define ODR105_BW25	    0x10  /* ODR = 105Hz; BW = 25Hz   */
+#define ODR105_BW25	0x10  /* ODR = 105Hz; BW = 25Hz   */
 #define ODR210_BW12_5	0x40  /* ODR = 210Hz; BW = 12.5Hz */
-#define ODR210_BW25	    0x50  /* ODR = 210Hz; BW = 25Hz   */
-#define ODR210_BW50	    0x60  /* ODR = 210Hz; BW = 50Hz   */
-#define ODR210_BW70	    0x70  /* ODR = 210Hz; BW = 70Hz   */
-#define ODR420_BW20	    0x80  /* ODR = 420Hz; BW = 20Hz   */
-#define ODR420_BW25	    0x90  /* ODR = 420Hz; BW = 25Hz   */
-#define ODR420_BW50	    0xA0  /* ODR = 420Hz; BW = 50Hz   */
+#define ODR210_BW25	0x50  /* ODR = 210Hz; BW = 25Hz   */
+#define ODR210_BW50	0x60  /* ODR = 210Hz; BW = 50Hz   */
+#define ODR210_BW70	0x70  /* ODR = 210Hz; BW = 70Hz   */
+#define ODR420_BW20	0x80  /* ODR = 420Hz; BW = 20Hz   */
+#define ODR420_BW25	0x90  /* ODR = 420Hz; BW = 25Hz   */
+#define ODR420_BW50	0xA0  /* ODR = 420Hz; BW = 50Hz   */
 #define ODR420_BW110	0xB0  /* ODR = 420Hz; BW = 110Hz  */
-#define ODR840_BW30	    0xC0  /* ODR = 840Hz; BW = 30Hz   */
-#define ODR840_BW35	    0xD0  /* ODR = 840Hz; BW = 35Hz   */
-#define ODR840_BW50	    0xE0  /* ODR = 840Hz; BW = 50Hz   */
+#define ODR840_BW30	0xC0  /* ODR = 840Hz; BW = 30Hz   */
+#define ODR840_BW35	0xD0  /* ODR = 840Hz; BW = 35Hz   */
+#define ODR840_BW50	0xE0  /* ODR = 840Hz; BW = 50Hz   */
 #define ODR840_BW110	0xF0  /* ODR = 840Hz; BW = 110Hz  */
 
 #define CTRL_REG4_DPS_SHIFT 4
@@ -76,14 +76,22 @@
 
 #define MIN_ST		175
 #define MAX_ST		875
-#define AC		    (1 << 7) /* register auto-increment bit */
+#define AC		(1 << 7) /* register auto-increment bit */
 #define MAX_ENTRY	20
 #define MAX_DELAY	(MAX_ENTRY * 9523809LL)
 
 #define K3G_MAJOR	102
 #define K3G_MINOR	4
 
-#if defined (CONFIG_KOR_MODEL_SHV_E120L)||defined (CONFIG_KOR_MODEL_SHV_E120S)||defined(CONFIG_KOR_MODEL_SHV_E120K) || defined (CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_KOR_MODEL_SHV_E160K) || defined (CONFIG_KOR_MODEL_SHV_E160L)
+#ifdef CONFIG_KOR_MODEL_SHV_E120L
+#define GPIO_GYRO_CONFIG	gpio_tlmm_config(GPIO_CFG(38, 0, GPIO_CFG_INPUT,\
+									GPIO_CFG_PULL_UP, GPIO_CFG_8MA), GPIO_CFG_ENABLE);\
+							gpio_tlmm_config(GPIO_CFG(39, 0, GPIO_CFG_OUTPUT,\
+									GPIO_CFG_PULL_UP, GPIO_CFG_8MA), GPIO_CFG_ENABLE);
+#endif
+
+#if defined (CONFIG_KOR_MODEL_SHV_E120L)||defined (CONFIG_KOR_MODEL_SHV_E120S)||defined(CONFIG_KOR_MODEL_SHV_E120K) || defined (CONFIG_KOR_MODEL_SHV_E160S)\
+ || defined (CONFIG_KOR_MODEL_SHV_E160K) || defined (CONFIG_KOR_MODEL_SHV_E160L) || defined (CONFIG_JPN_MODEL_SC_05D) 
 #define SENSOR_GYRO_SCL 39
 #define SENSOR_GYRO_SDA 38
 #endif
@@ -118,6 +126,8 @@ struct k3g_t {
 	s16 z;
 };
 
+typedef void (*power_func_type) (void);
+
 struct k3g_data {
 	struct i2c_client *client;
 	struct input_dev *input_dev;
@@ -134,8 +144,8 @@ struct k3g_data {
 	u8 ctrl_regs[5];	/* saving register settings */
 	u32 time_to_read;	/* time needed to read one entry */
 	ktime_t polling_delay;	/* polling time for timer */
-	int	(*power_on) (void);
-	int	(*power_off) (void);
+	void	(*power_on) (void);
+	void	(*power_off) (void);
 };
 
 #define USE_BUFFER 1
@@ -146,13 +156,15 @@ struct k3g_data {
 #define readbuf(bufid) data_buffer[bufid * OFFSET + buffer_dsc[bufid].readp++]
 #define readLast(bufid)  data_buffer[bufid * OFFSET + buffer_dsc[bufid].top -1];
 
+
 int loading_flag;
 struct buf_dsc {
-    int top;
-    int readp;
+        int top;
+	int readp;
 }buffer_dsc[2]={{0,-1},{0,-1}};
 struct k3g_t data_buffer[2 * OFFSET];            
 int currbufid;                           /* stores the id of current buffer being reported */
+
 #endif
 
 int k3g_dps = 0;
@@ -198,7 +210,7 @@ static void set_polling_delay(struct k3g_data *k3g_data, int res)
 	k3g_data->polling_delay = ns_to_ktime(delay_ns);
 }
 
-#if defined (CONFIG_KOR_MODEL_SHV_E110S) || defined (CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_KOR_MODEL_SHV_E160K) || defined (CONFIG_KOR_MODEL_SHV_E160L)
+#if defined (CONFIG_KOR_MODEL_SHV_E110S) || defined (CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_KOR_MODEL_SHV_E160K) || defined (CONFIG_KOR_MODEL_SHV_E160L) || defined (CONFIG_JPN_MODEL_SC_05D) 
 extern unsigned int get_hw_rev(void);
 #endif
 
@@ -243,12 +255,12 @@ static int k3g_read_gyro_values(struct i2c_client *client, struct k3g_t *data, i
 #if defined (CONFIG_KOR_MODEL_SHV_E110S)
 	if (get_hw_rev() >= 0x06 )
 	{
-		data->x =  ((gyro_data[1] << 8) | gyro_data[0]);
+		data->x = ((gyro_data[1] << 8) | gyro_data[0]);
 		data->z = -((gyro_data[3] << 8) | gyro_data[2]);
-		data->y =  ((gyro_data[5] << 8) | gyro_data[4]);
+		data->y = ((gyro_data[5] << 8) | gyro_data[4]);
 	} else
 #endif
-#if defined (CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_KOR_MODEL_SHV_E160K)
+#if defined (CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_KOR_MODEL_SHV_E160K) || defined (CONFIG_JPN_MODEL_SC_05D) 
     if (get_hw_rev() >= 0x01 )
     {
     
@@ -269,9 +281,15 @@ static int k3g_read_gyro_values(struct i2c_client *client, struct k3g_t *data, i
     } else
 #endif
 	{
+#if defined(CONFIG_EUR_MODEL_GT_I9210)
+		data->x = - ((gyro_data[1] << 8) | gyro_data[0]);
+		data->z = - ((gyro_data[3] << 8) | gyro_data[2]);
+		data->y = - ((gyro_data[5] << 8) | gyro_data[4]);
+#else
 		data->y = (gyro_data[1] << 8) | gyro_data[0];
 		data->z = (gyro_data[3] << 8) | gyro_data[2];
 		data->x = (gyro_data[5] << 8) | gyro_data[4];
+#endif
 	}
 
 	return 0;
@@ -305,47 +323,45 @@ static int k3g_report_gyro_values(struct k3g_data *k3g_data)
 
 	return res;
 }
-
 #if USE_BUFFER
+
 static enum hrtimer_restart k3g_timer_func(struct hrtimer *timer)
 {
-    struct k3g_data *k3g_data = container_of(timer, struct k3g_data, timer);
-    struct k3g_t *datap = NULL;
+	struct k3g_data *k3g_data = container_of(timer, struct k3g_data, timer);
+	struct k3g_t *datap = NULL;
 
-    if(!isempty(currbufid)) {
-        datap=&readbuf(currbufid);  /* data is there in current buffer */
-    }else {
-        /* current buffer has no data */
-        if (isempty(!currbufid)) {
-            /* other buffer is also empty, report the last reported data/ skip reporting */
-            if(buffer_dsc[currbufid].top > 0)
-                datap=&readLast(currbufid);;
-        }else {
-            /* other buffer has data switch to it */
-            currbufid= !currbufid;
-            datap=&readbuf(currbufid);;	
-        }
-    }
-    
-    if(!loading_flag && isempty(!currbufid)) {
-        /* other buffer is empty and no loading also in progress, schedule buffer loading */
-        loading_flag = 1;
-        queue_work(k3g_data->k3g_wq, &k3g_data->work);
-    }
-    
-    if(datap) {
-        /* report values to input core */
-        input_report_rel(k3g_data->input_dev, REL_RX, datap->x);
-        input_report_rel(k3g_data->input_dev, REL_RY, datap->y);
-        input_report_rel(k3g_data->input_dev, REL_RZ, datap->z);
-        input_sync(k3g_data->input_dev);
-    }
-    
-    /* restart the timer */
-    hrtimer_start(&k3g_data->timer, k3g_data->polling_delay, HRTIMER_MODE_REL);
-    return HRTIMER_NORESTART;
+       if(!isempty(currbufid)) {
+	           /* data is there in current buffer */
+	               datap=&readbuf(currbufid);
+       }else {
+	          /* current buffer has no data */
+	           if (isempty(!currbufid)) {
+			       /* other buffer is also empty, report the last reported data/ skip reporting */
+				if(buffer_dsc[currbufid].top > 0)
+				 	datap=&readLast(currbufid);;
+	           }else {
+	                    /* other buffer has data switch to it */
+				currbufid= !currbufid;
+				datap=&readbuf(currbufid);;	
+	           }
+						   
+	}
+       if(!loading_flag && isempty(!currbufid)) {
+                 /* other buffer is empty and no loading also in progress, schedule buffer loading */
+		  loading_flag = 1;
+		  queue_work(k3g_data->k3g_wq, &k3g_data->work);
+       }
+       if(datap) {
+	       /* report values to input core */
+		input_report_rel(k3g_data->input_dev, REL_RX, datap->x);
+		input_report_rel(k3g_data->input_dev, REL_RY, datap->y);
+		input_report_rel(k3g_data->input_dev, REL_RZ, datap->z);
+		input_sync(k3g_data->input_dev);
+       }
+	/* restart the timer */
+	hrtimer_start(&k3g_data->timer, k3g_data->polling_delay, HRTIMER_MODE_REL);
+	return HRTIMER_NORESTART;
 }
-
 static void k3g_load_gyro_values(struct k3g_data *k3g_data)
 {
 	int res,fifocnt = 0,readcnt,i=0, dcount= -1;
@@ -383,6 +399,7 @@ static void k3g_load_gyro_values(struct k3g_data *k3g_data)
 		 * could have done i2c read in mid register update
 		 */
 		k3g_restart_fifo(k3g_data);
+		return;
 	}
 
 }
@@ -409,11 +426,15 @@ static void k3g_work_func(struct work_struct *work)
 
 	do {
 		res = k3g_read_fifo_status(k3g_data);
-		if (res < 0)
+		if (res < 0) {	
+			pr_warn("%s: fail to read k3g_read_fifo_status res=%d",
+							__func__, res);
 			return;
+		}
 
 		if (res < k3g_data->entries) {
-			// pr_warn("%s: fifo entries are less than we want\n", __func__);
+			pr_warn("%s: fifo entries are less than we want res=%d, entries=%d\n",
+								__func__, res, k3g_data->entries);
 			goto timer_set;
 		}
 
@@ -451,14 +472,18 @@ static void k3g_set_dps(int dps)
 	printk("%s: %d dps stored\n", __func__, k3g_dps);
 }
 
-static ssize_t k3g_selftest_dps_show(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t k3g_selftest_dps_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
 {
 	return sprintf(buf, "%d\n", k3g_get_dps());
 }
 
 static ssize_t k3g_selftest_dps_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
+	// struct k3g_data *data = dev_get_drvdata(dev);
 	int data_buf = 0;
+	// int value = 0;
+	// int ret;
 
 	sscanf(buf, "%d", &data_buf);
 	k3g_set_dps(data_buf);
@@ -488,7 +513,9 @@ static ssize_t k3g_set_enable(struct device *dev, struct device_attribute *attr,
 
 	if (new_enable == k3g_data->enable)
 		return size;
-
+#ifdef CONFIG_KOR_MODEL_SHV_E120L
+	GPIO_GYRO_CONFIG
+#endif
 	mutex_lock(&k3g_data->lock);
 	if (new_enable) {
 		/* turning on */
@@ -526,24 +553,23 @@ static ssize_t k3g_set_enable(struct device *dev, struct device_attribute *attr,
 		if (k3g_data->interruptible)
 			enable_irq(k3g_data->client->irq);
 		else {
-			#if USE_BUFFER
-			long adelay;
-			#endif
 			set_polling_delay(k3g_data, 0);
             
-            #if USE_BUFFER
-            adelay = ktime_to_ms(k3g_data->polling_delay ) ;
-            adelay = (adelay *OFFSET > 12) ? 12:adelay *OFFSET;
-            msleep(adelay);
-            currbufid = 1;
-            /* reset buffers */
-            buffer_dsc[0].readp =0;buffer_dsc[0].top =-1;
-            buffer_dsc[1].readp =0;buffer_dsc[1].top =-1;
-            loading_flag=1;
-            k3g_load_gyro_values(k3g_data);
-            loading_flag=0;
-            currbufid = 0;
-            #endif
+		#if USE_BUFFER
+		{
+			int adelay = ktime_to_ms(k3g_data->polling_delay ) ;
+			adelay = (adelay *OFFSET > 12) ? 12:adelay *OFFSET;
+			msleep(adelay);
+			currbufid = 1;
+			/* reset buffers */
+			buffer_dsc[0].readp =0;buffer_dsc[0].top =-1;
+			buffer_dsc[1].readp =0;buffer_dsc[1].top =-1;
+			loading_flag=1;
+			k3g_load_gyro_values(k3g_data);
+			loading_flag=0;
+			currbufid = 0;
+		}
+		#endif
             
  			hrtimer_start(&k3g_data->timer,	k3g_data->polling_delay, HRTIMER_MODE_REL);
 		}
@@ -631,11 +657,12 @@ static ssize_t k3g_set_delay(struct device *dev, struct device_attribute *attr, 
 		k3g_data->ctrl_regs[0] = ctrl;
 		res = i2c_smbus_write_byte_data(k3g_data->client, CTRL_REG1, ctrl);
 	}
-
+#if 0 // elimination delay, HAL is waiting for 350ms, see GyroSensor.cpp
 	/* we see a noise in the first sample or two after we
 	 * change rates.  this delay helps eliminate that noise.
 	 */
-	msleep((u32)delay_ns * 2 / NSEC_PER_MSEC);
+	// msleep((u32)delay_ns * 2 / NSEC_PER_MSEC);
+#endif
 
 	/* (re)start fifo */
 	k3g_restart_fifo(k3g_data);
@@ -689,6 +716,9 @@ static ssize_t k3g_power_on(struct device *dev,	struct device_attribute *attr, c
 	s16 raw[3];
 	u8 gyro_data[6];
 #endif
+#ifdef CONFIG_KOR_MODEL_SHV_E120L
+	GPIO_GYRO_CONFIG
+#endif
 
 	err = device_init(data);
 	if (err < 0) {
@@ -716,11 +746,16 @@ static ssize_t k3g_power_on(struct device *dev,	struct device_attribute *attr, c
 	return sprintf(buf, "%d\n", (err < 0 ? 0 : 1));
 }
 
-static ssize_t k3g_power_off(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t k3g_power_off(struct device *dev,
+				struct device_attribute *attr, char *buf)
 {
 	struct k3g_data *data = dev_get_drvdata(dev);
 	int err;
 	u8 buffer[5];
+	
+#ifdef CONFIG_KOR_MODEL_SHV_E120L
+	GPIO_GYRO_CONFIG
+#endif
 
 	buffer[0] = 0x60;// power_down mode
 	buffer[1] = 0x00;
@@ -728,7 +763,8 @@ static ssize_t k3g_power_off(struct device *dev, struct device_attribute *attr, 
 	buffer[3] = 0x00;
 	buffer[4] = 0x00;
 	
-	err = i2c_smbus_write_i2c_block_data(data->client, CTRL_REG1 | AC, sizeof(buffer), buffer);
+	err = i2c_smbus_write_i2c_block_data(data->client,
+					CTRL_REG1 | AC, sizeof(buffer), buffer);
 	if (err < 0)
 		pr_err("%s: CTRL_REGs i2c writing failed\n", __func__);
 
@@ -743,6 +779,10 @@ static ssize_t k3g_get_temp(struct device *dev,
 {
 	struct k3g_data *data = dev_get_drvdata(dev);
 	char temp;
+
+#ifdef CONFIG_KOR_MODEL_SHV_E120L
+	GPIO_GYRO_CONFIG
+#endif
 	temp = i2c_smbus_read_byte_data(data->client, OUT_TEMP);
 	if (temp < 0) {
 		pr_err("%s: STATUS_REGS i2c reading failed\n", __func__);
@@ -769,7 +809,7 @@ static ssize_t k3g_self_test(struct device *dev, struct device_attribute *attr, 
 	s16 fifo_raw[3*32]={0,};
 	s16 fifo_data[3*32]={0,};
 	s16 zero_rate_data[3]={0,};
-	u8 gyro_fifo_test_data[8][4*6]={{0,0},};
+	u8 gyro_fifo_test_data[8][4*6]={{0},};
 	u8 temp = 0;
 	u8 gyro_data[6];
 	u8 backup_regs[5];
@@ -777,7 +817,7 @@ static ssize_t k3g_self_test(struct device *dev, struct device_attribute *attr, 
 	u8 bZYXDA = 0;
 	u8 pass = 2;
 	u8 zero_rate_test= 0;
-	
+
 	memset(NOST, 0, sizeof(NOST));
 	memset(ST, 0, sizeof(ST));
 
@@ -797,15 +837,15 @@ static ssize_t k3g_self_test(struct device *dev, struct device_attribute *attr, 
 
 #if defined (CONFIG_KOR_MODEL_SHV_E110S) \
 || defined (CONFIG_KOR_MODEL_SHV_E120S) || defined (CONFIG_KOR_MODEL_SHV_E120K) || defined (CONFIG_KOR_MODEL_SHV_E120L) || defined(CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_KOR_MODEL_SHV_E160K) || defined (CONFIG_KOR_MODEL_SHV_E160L) \
-|| defined (CONFIG_JPN_MODEL_SC_03D) || defined (CONFIG_USA_MODEL_SGH_I717) || defined (CONFIG_USA_MODEL_SGH_I757)  || defined(CONFIG_CAN_MODEL_SGH_I757M)
+|| defined (CONFIG_JPN_MODEL_SC_03D) || defined (CONFIG_USA_MODEL_SGH_I717) || defined (CONFIG_USA_MODEL_SGH_I727) || defined (CONFIG_USA_MODEL_SGH_T989) || defined(CONFIG_USA_MODEL_SGH_I757) || defined (CONFIG_JPN_MODEL_SC_05D) 
 
 	/* Initialize Sensor, turn on sensor, enable P/R/Y */
 	/*CTRL_REG1= 0x6F (210Hz with Fc=50Hz, normal mode)
-     CTRL_REG2= 0x00
-     CTRL_REG3= 0x04 (Setting I2_WTM to 1)
-     CTRL_REG4= 0x90 (BDU enable, FS=500dps)
-     CTRL_REG5= 0x40 (FIFO enable)
-     FIFO_CTRL_REG= 0x20|0x1F (FIFO MODE, WTM=0x1F)*/
+ 	 CTRL_REG2= 0x00
+        CTRL_REG3= 0x04 (Setting I2_WTM to 1)
+        CTRL_REG4= 0x90 (BDU enable, FS=500dps)
+        CTRL_REG5= 0x40 (FIFO enable)
+        FIFO_CTRL_REG= 0x20|0x1F (FIFO MODE, WTM=0x1F)*/
         
 	reg[0] = 0x6f;
 	reg[1] = 0x00;
@@ -834,7 +874,8 @@ static ssize_t k3g_self_test(struct device *dev, struct device_attribute *attr, 
 	msleep(800);
 
 	for (i = 0; i < 10; i++) {
-		err = i2c_smbus_write_byte_data(data->client, FIFO_CTRL_REG, BYPASS_MODE);
+		err = i2c_smbus_write_byte_data(data->client,
+				FIFO_CTRL_REG, BYPASS_MODE);
 		if (err >= 0)
 			break;
 	}
@@ -854,6 +895,7 @@ static ssize_t k3g_self_test(struct device *dev, struct device_attribute *attr, 
 		pr_err("%s : failed to set FIFO_SELFTEST_MODE\n", __func__);
 		goto exit;
 	}
+
 
 	while(retry--){
 		fifo_ready_status = i2c_smbus_read_byte_data(data->client, FIFO_SRC_REG);
@@ -944,13 +986,13 @@ static ssize_t k3g_self_test(struct device *dev, struct device_attribute *attr, 
 	/* Read 5 samples output before self-test on */
 	for (i = 0; i < 5; i++) {
 		for (j = 0; j < 10; j++) {      /* check ZYXDA ready bit */
-			temp = i2c_smbus_read_byte_data(data->client, STATUS_REG);
+		temp = i2c_smbus_read_byte_data(data->client, STATUS_REG);
 			if (temp >= 0) {
-				bZYXDA = temp & 0x08;
-				if (!bZYXDA) {
-					msleep(10);
+		bZYXDA = temp & 0x08;
+		if (!bZYXDA) {
+			msleep(10);
 					pr_err("%s: %d,%d: no_data_ready", __func__, i, j);
-					continue;
+			continue;
 				} else
 				break;
     		}
@@ -992,11 +1034,11 @@ static ssize_t k3g_self_test(struct device *dev, struct device_attribute *attr, 
 		printk(KERN_INFO "[gyro_self_test] " "AVG of NOST[%d] = %d\n", i, NOST[i]);
 	}
 	// printk(KERN_INFO "\n");
- 
+
 	/* Enable Self Test */
 	reg[0] = 0xA2;
 	for (i = 0; i < 10; i++) {
-		err = i2c_smbus_write_byte_data(data->client, CTRL_REG4, reg[0]);
+	err = i2c_smbus_write_byte_data(data->client, CTRL_REG4, reg[0]);
 		if (err >= 0)
 			break;
 	}
@@ -1014,11 +1056,11 @@ static ssize_t k3g_self_test(struct device *dev, struct device_attribute *attr, 
 			temp = i2c_smbus_read_byte_data(data->client,
 								STATUS_REG);
 			if (temp >= 0) {
-				bZYXDA = temp & 0x08;
-				if (!bZYXDA) {
-					msleep(10);
+		bZYXDA = temp & 0x08;
+		if (!bZYXDA) {
+			msleep(10);
 					pr_err("[GYRO] %s: %d,%d: no_data_ready\n", __func__, i, j);
-					continue;
+			continue;
 				} else
 				break;
 		}
@@ -1053,13 +1095,15 @@ static ssize_t k3g_self_test(struct device *dev, struct device_attribute *attr, 
 	}
 
 	for (i = 0; i < 3; i++)
-		printk(KERN_INFO "[gyro_self_test] " "SUM of ST[%d] = %d\n", i, ST[i]);
+		printk(KERN_INFO "[gyro_self_test] "
+			"SUM of ST[%d] = %d\n", i, ST[i]);
 
 	/* calculate average of ST and convert from ADC to dps */
 	for (i = 0; i < 3; i++)	{
 		/* When FS=2000, 70 mdps/digit */
 		ST[i] = (ST[i] / 5) * 70 / 1000;
-		printk(KERN_INFO "[gyro_self_test] " "AVG of ST[%d] = %d\n", i, ST[i]);
+		printk(KERN_INFO "[gyro_self_test] "
+			"AVG of ST[%d] = %d\n", i, ST[i]);
 	}
 
 	/* check whether pass or not */
@@ -1102,13 +1146,16 @@ exit:
 		printk(KERN_INFO "[gyro_self_test] self-test result : retry\n");
 	else
 	printk(KERN_INFO "[gyro_self_test] self-test result : %s\n", pass ? "pass" : "fail");
-	
+
 #if defined (CONFIG_KOR_MODEL_SHV_E110S) \
 || defined (CONFIG_KOR_MODEL_SHV_E120S) || defined (CONFIG_KOR_MODEL_SHV_E120K) || defined (CONFIG_KOR_MODEL_SHV_E120L) || defined(CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_KOR_MODEL_SHV_E160K) || defined (CONFIG_KOR_MODEL_SHV_E160L) \
-|| defined (CONFIG_JPN_MODEL_SC_03D) || defined (CONFIG_USA_MODEL_SGH_I717) || defined (CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I757M) 
-    return sprintf(buf, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n", NOST[0], NOST[1], NOST[2], ST[0], ST[1], ST[2], pass,	zero_rate_test,zero_rate_data[0],zero_rate_data[1],zero_rate_data[2]);
+|| defined (CONFIG_JPN_MODEL_SC_03D) || defined (CONFIG_USA_MODEL_SGH_I717) || defined (CONFIG_USA_MODEL_SGH_I727) || defined (CONFIG_USA_MODEL_SGH_T989) || defined(CONFIG_USA_MODEL_SGH_I757) || defined (CONFIG_JPN_MODEL_SC_05D) 
+    return sprintf(buf, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
+        NOST[0], NOST[1], NOST[2], ST[0], ST[1], ST[2], pass,
+    	zero_rate_test,zero_rate_data[0],zero_rate_data[1],zero_rate_data[2]);
 #else
-    return sprintf(buf, "%d,%d,%d,%d,%d,%d,%d\n", NOST[0], NOST[1], NOST[2], ST[0], ST[1], ST[2], pass);
+	return sprintf(buf, "%d,%d,%d,%d,%d,%d,%d\n",
+		NOST[0], NOST[1], NOST[2], ST[0], ST[1], ST[2], pass);
 #endif
 }
 
@@ -1151,9 +1198,9 @@ static int k3g_probe(struct i2c_client *client,  const struct i2c_device_id *dev
 	data->client = client;
 
 	if(pdata->power_on)
-		data->power_on = pdata->power_on;
+		data->power_on = (power_func_type)pdata->power_on;
 	if(pdata->power_off)
-		data->power_off = pdata->power_off;
+		data->power_off = (power_func_type)pdata->power_off;
 
 	if(data->power_on)
 		data->power_on();
@@ -1390,18 +1437,20 @@ static int k3g_suspend(struct device *dev)
 			hrtimer_cancel(&k3g_data->timer);
 			cancel_work_sync(&k3g_data->work);
 		}
-		err = i2c_smbus_write_byte_data(k3g_data->client, CTRL_REG1, 0x00);
+		err = i2c_smbus_write_byte_data(k3g_data->client,
+						CTRL_REG1, 0x00);
 		mutex_unlock(&k3g_data->lock);
 	}
 
 	if(k3g_data->power_off)
 		k3g_data->power_off();
     
-#if defined (CONFIG_KOR_MODEL_SHV_E120L)||defined (CONFIG_KOR_MODEL_SHV_E120S)||defined(CONFIG_KOR_MODEL_SHV_E120K)||defined (CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_KOR_MODEL_SHV_E160K) || defined (CONFIG_KOR_MODEL_SHV_E160L)
-    gpio_direction_input(SENSOR_GYRO_SCL);
-    gpio_direction_input(SENSOR_GYRO_SDA);
-    gpio_free(SENSOR_GYRO_SCL);
-    gpio_free(SENSOR_GYRO_SDA);
+#if defined (CONFIG_KOR_MODEL_SHV_E120L)||defined (CONFIG_KOR_MODEL_SHV_E120S)||defined(CONFIG_KOR_MODEL_SHV_E120K)||defined (CONFIG_KOR_MODEL_SHV_E160S) \
+|| defined (CONFIG_KOR_MODEL_SHV_E160K) || defined (CONFIG_KOR_MODEL_SHV_E160L) || defined (CONFIG_JPN_MODEL_SC_05D) 
+			 gpio_direction_input(SENSOR_GYRO_SCL);
+			 gpio_direction_input(SENSOR_GYRO_SDA);
+			 gpio_free(SENSOR_GYRO_SCL);
+			 gpio_free(SENSOR_GYRO_SDA);
 #endif
 	return err;
 }
@@ -1412,7 +1461,8 @@ static int k3g_resume(struct device *dev)
 	struct i2c_client *client = to_i2c_client(dev);
 	struct k3g_data *k3g_data = i2c_get_clientdata(client);
 
-#if defined (CONFIG_KOR_MODEL_SHV_E120L)||defined (CONFIG_KOR_MODEL_SHV_E120S)||defined(CONFIG_KOR_MODEL_SHV_E120K)||defined (CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_KOR_MODEL_SHV_E160K) || defined (CONFIG_KOR_MODEL_SHV_E160L)
+#if defined (CONFIG_KOR_MODEL_SHV_E120L)||defined (CONFIG_KOR_MODEL_SHV_E120S)||defined(CONFIG_KOR_MODEL_SHV_E120K)||defined (CONFIG_KOR_MODEL_SHV_E160S) \
+|| defined (CONFIG_KOR_MODEL_SHV_E160K) || defined (CONFIG_KOR_MODEL_SHV_E160L) || defined (CONFIG_JPN_MODEL_SC_05D) 
 	err = gpio_request(SENSOR_GYRO_SCL ,"gyro_scl");
 	if(err) {
 		pr_err("[ACC] %s : gpio_request SCL failed %d\n", __func__, err);
@@ -1424,7 +1474,6 @@ static int k3g_resume(struct device *dev)
 		pr_err("[ACC] %s : gpio_request SCL failed %d\n", __func__, err);
 	}
 #endif
-
 	if(k3g_data->power_on)
 		k3g_data->power_on();
 
@@ -1435,11 +1484,11 @@ static int k3g_resume(struct device *dev)
 		err = i2c_smbus_write_i2c_block_data(client, CTRL_REG1 | AC, sizeof(k3g_data->ctrl_regs), k3g_data->ctrl_regs);
 		mutex_unlock(&k3g_data->lock);
 	} else {
-        mutex_lock(&k3g_data->lock);
-        err = i2c_smbus_write_byte_data(k3g_data->client, CTRL_REG1, 0x00);
-        mutex_unlock(&k3g_data->lock);
-        if (err < 0)
-            pr_err("%s: fail to write i2c err=%d\n", __func__, err);
+		mutex_lock(&k3g_data->lock);
+        	err = i2c_smbus_write_byte_data(k3g_data->client, CTRL_REG1, 0x00);
+		mutex_unlock(&k3g_data->lock);
+        	 if (err < 0)
+        		pr_err("%s: fail to write i2c err=%d\n", __func__, err);
 	}
 
 	return err;

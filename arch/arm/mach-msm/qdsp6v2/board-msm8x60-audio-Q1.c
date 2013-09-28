@@ -32,9 +32,10 @@
 #ifdef CONFIG_SENSORS_YDA165
 #include <linux/i2c/yda165_integ.h>
 #endif
+#include <linux/i2c/fsa9480.h>
 
 #include <mach/qdsp6v2/audio_dev_ctl.h>
-#include <mach/qdsp6v2/apr_audio.h>
+#include <sound/apr_audio.h>
 #include <mach/mpp.h>
 #include <asm/mach-types.h>
 #include <asm/uaccess.h>
@@ -53,6 +54,8 @@
 #include "timpani_profile_quincy_kt.h"
 #elif defined(CONFIG_KOR_MODEL_SHV_E160L)/*QUINCY-LGT */
 #include "timpani_profile_quincy_lgt.h"
+#elif defined(CONFIG_JPN_MODEL_SC_05D)/*QUINCY-JPN equal to SKT*/
+#include "timpani_profile_quincy_ntt.h"
 #elif defined(CONFIG_USA_MODEL_SGH_I717) /*QUINCY-ATT */
 #include "timpani_profile_quincy_att.h"
 #endif
@@ -483,6 +486,7 @@ void msm_snddev_poweramp_off_headset_call(void)
 
 int msm_snddev_poweramp_on_headset(void)
 {
+	fsa9480_audiopath_control(0); /* prevent lineout sound out */
 #ifdef CONFIG_SENSORS_YDA165
 	yda165_headset_onoff(1);
 #endif
@@ -509,6 +513,51 @@ void msm_snddev_poweramp_off_call_headset(void)
 	yda165_headset_call_onoff(0);
 #endif
 	pr_info("%s: power on headset\n", __func__);
+}
+
+int msm_snddev_vpsamp_on_headset(void)
+{
+#ifdef CONFIG_SENSORS_YDA165
+	yda165_headset_onoff(1);
+	pr_info("%s: power on amp headset\n", __func__);
+#endif
+	fsa9480_audiopath_control(1);
+
+	return 0;
+}
+
+void msm_snddev_vpsamp_off_headset(void)
+{
+#ifdef CONFIG_SENSORS_YDA165
+	yda165_headset_onoff(0);
+	pr_info("%s: power off amp headset\n", __func__);
+#endif
+	fsa9480_audiopath_control(0);
+
+	return 0;
+}
+
+int msm_snddev_spkvpsamp_on_together(void)
+{
+	pr_info("%s\n", __func__);
+	
+#ifdef CONFIG_SENSORS_YDA165
+	yda165_speaker_headset_onoff(1);
+#endif
+
+	fsa9480_audiopath_control(1);
+	
+	return 0;
+}
+void msm_snddev_spkvpsamp_off_together(void)
+{
+	pr_info("%s\n", __func__);
+	
+#ifdef CONFIG_SENSORS_YDA165
+	yda165_speaker_headset_onoff(0);
+#endif
+	
+	fsa9480_audiopath_control(0);
 }
 
 int msm_snddev_poweramp_on_together(void)
@@ -2460,8 +2509,8 @@ static struct snddev_icodec_data lineout_rx_data = {
 	.profile = &lineout_rx_profile,
 	.channel_mode = 2,
 	.default_sample_rate = 48000,
-	.pamp_on = msm_snddev_poweramp_on_headset,
-	.pamp_off = msm_snddev_poweramp_off_headset,
+	.pamp_on = msm_snddev_vpsamp_on_headset,
+	.pamp_off = msm_snddev_vpsamp_off_headset,	
 	.voltage_on = msm_snddev_voltage_on,
 	.voltage_off = msm_snddev_voltage_off,
 };
@@ -2508,8 +2557,8 @@ static struct snddev_icodec_data speaker_lineout_rx_data = {
 	.profile = &speaker_lineout_rx_profile,
 	.channel_mode = 2,
 	.default_sample_rate = 48000,
-	.pamp_on = msm_snddev_poweramp_on_together,
-	.pamp_off = msm_snddev_poweramp_off_together,
+	.pamp_on = msm_snddev_spkvpsamp_on_together,
+	.pamp_off = msm_snddev_spkvpsamp_off_together,
 	.voltage_on = msm_snddev_voltage_on,
 	.voltage_off = msm_snddev_voltage_off,
 };
@@ -5704,6 +5753,8 @@ void __init msm_snddev_init(void)
 	atomic_set(&pamp_ref_cnt, 0);
 	atomic_set(&preg_ref_cnt, 0);
 
+    pr_err("%s \n",	__func__);
+
 	for (i = 0, dev_id = 0; i < ARRAY_SIZE(snd_devices_common); i++)
 		snd_devices_common[i]->id = dev_id++;
 
@@ -5711,14 +5762,14 @@ void __init msm_snddev_init(void)
 			ARRAY_SIZE(snd_devices_common));
 
 	/* Auto detect device base on machine info */
-	if (machine_is_msm8x60_surf() || machine_is_msm8x60_charm_surf()) {
+	if (machine_is_msm8x60_surf() || machine_is_msm8x60_fusion()) {
 		for (i = 0; i < ARRAY_SIZE(snd_devices_surf); i++)
 			snd_devices_surf[i]->id = dev_id++;
 
 		platform_add_devices(snd_devices_surf,
 				ARRAY_SIZE(snd_devices_surf));
 	} else if (machine_is_msm8x60_ffa() ||
-			machine_is_msm8x60_charm_ffa()) {
+			machine_is_msm8x60_fusn_ffa()) {
 #ifdef SEC_AUDIO_DEVICE
 		for (i = 0; i < ARRAY_SIZE(snd_devices_samsung); i++)
 			snd_devices_samsung[i]->id = dev_id++;

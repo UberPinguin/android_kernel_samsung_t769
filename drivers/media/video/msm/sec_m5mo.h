@@ -51,6 +51,11 @@
 #define cam_err(fmt, arg...)
 #endif
 
+
+#if defined (CONFIG_TARGET_SERIES_Q1)//160S/K/L, I727
+#define CAMERA_WXGA_PREVIEW 
+#endif
+
 #define M5MO_IMG_I2C_ADDR	0x3F
 
 #define	PREVIEW_NORMAL		0
@@ -94,7 +99,7 @@
 #define M5MO_120_FPS			0x9
 #define M5MO_AUTO_FPS			0xA
 */
-#if defined (CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L) || defined (CONFIG_USA_MODEL_SGH_I717)
+#if defined (CAMERA_WXGA_PREVIEW)
 enum m5mo_prev_frmsize {
 	M5MO_PREVIEW_QCIF = 0,
 	M5MO_PREVIEW_QCIF2,
@@ -132,6 +137,7 @@ enum m5mo_cap_frmsize {
 	M5MO_CAPTURE_HD4MP,	/* 2560 x 1440*/
 	M5MO_CAPTURE_3MP,	/* QXGA - 2048 x 1536 */
 	M5MO_CAPTURE_W2MP,	/* 2048 x 1232 */
+	M5MO_CAPTURE_1MP,	/* 1280 x 960 */
 	M5MO_CAPTURE_HD1MP,	/* 1280 x 720*/
 	M5MO_CAPTURE_WVGA,	/* 800 x 480 */
 	M5MO_CAPTURE_VGA,	/* 640 x 480 */
@@ -171,7 +177,7 @@ struct m5mo_frmsizeenum {
 #define M5MO_8M_SIZE			0x29
 #define M5MO_QVGA_SL60_SIZE	0x30		
 #define M5MO_QVGA_SL120_SIZE	0x31		
-#if defined (CONFIG_KOR_MODEL_SHV_E160S) || defined (CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L) || defined (CONFIG_USA_MODEL_SGH_I717)
+#if defined (CAMERA_WXGA_PREVIEW) 
 #define M5MO_1072x800_SIZE		0x36//for Quincy
 #define M5MO_1280x800_SIZE		0x35//for Quincy
 #endif
@@ -209,25 +215,30 @@ struct m5mo_frmsizeenum {
 #define M5MO_I2C_VERIFY_RETRY		200
 
 #define SDCARD_FW
+
 #ifdef SDCARD_FW
-#define M5MO_FW_PATH_SDCARD			"/sdcard/external_sd/RS_M5LS.bin"
+#define M5MO_FW_PATH_SDCARD			"/sdcard/RS_M5LS.bin" 
+//#define M5MO_FW_PATH_SDCARD			"/sdcard/external_sd/RS_M5LS.bin"
 #endif
 
-
-#if defined (CONFIG_USA_MODEL_SGH_T989)|| defined (CONFIG_USA_MODEL_SGH_T769)
-
-#define M5MOS_FW_REQUEST_PATH	"/system/etc/firmware/RS_M5LS_S_TMO.bin"	/* SEMKO */
-#define M5MOO_FW_REQUEST_PATH	"/system/etc/firmware/RS_M5LS_O_TMO.bin"	/* Optical communication */
-#elif defined (CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I757M)
-#define M5MOS_FW_REQUEST_PATH	"/system/etc/firmware/RS_M5LS_S_CELOXHD.bin"	/* SEMKO */
-#define M5MOO_FW_REQUEST_PATH	"/system/etc/firmware/RS_M5LS_O_CELOXHD.bin"	/* Optical communication */
+#if defined(CONFIG_USA_MODEL_SGH_T989)
+#define M5MOS_FW_REQUEST_PATH	"/system/cameradata/RS_M5LS_S_TMO.bin"	/* SEMKO */
+#define M5MOO_FW_REQUEST_PATH	"/system/cameradata/RS_M5LS_O_TMO.bin"	/* Optical communication */
+#elif defined(CONFIG_JPN_MODEL_SC_05D)
+#define M5MOS_FW_REQUEST_PATH	"/system/etc/firmware/RS_M5LS_S.bin"
+#define M5MOO_FW_REQUEST_PATH	"/system/etc/firmware/RS_M5LS_OO.bin"
+#elif defined (CONFIG_TARGET_SERIES_Q1)
+#define M5MOS_FW_REQUEST_PATH	"/system/cameradata/RS_M5LS_S.bin"	/* Samsung Electro-Mechanics */
+//for Q1, M5MOO FW path is /system/etc/firmware/RS_M5LS_OO.bin
+//#define M5MOO_FW_REQUEST_PATH	"/system/cameradata/RS_M5LS_OO.bin"	/* Optical communication */
+#define M5MOO_FW_REQUEST_PATH	"/system/etc/firmware/RS_M5LS_OO.bin"	/* Optical communication */
 #else
-#define M5MOS_FW_REQUEST_PATH	"/system/etc/firmware/RS_M5LS_S.bin"	/* Samsung Electro-Mechanics */
-#define M5MOO_FW_REQUEST_PATH	"/system/etc/firmware/RS_M5LS_O.bin"	/* Optical communication */
+#define M5MOS_FW_REQUEST_PATH	"/system/cameradata/RS_M5LS_S.bin"	/* Samsung Electro-Mechanics */
+#define M5MOO_FW_REQUEST_PATH	"/system/cameradata/RS_M5LS_O.bin"	/* Optical communication */
 #endif
 
 
-#define M5MO_FW_DUMP_PATH		"/data/RS_M5LS_dump.bin"
+#define M5MO_FW_DUMP_PATH	"/data/RS_M5LS_dump.bin"
 #define M5MO_FLASH_BASE_ADDR	0x10000000
 #define M5MO_INT_RAM_BASE_ADDR	0x68000000
 #define M5MO_VERSION_INFO_SIZE	21
@@ -295,6 +306,12 @@ struct m5mo_focus {
 };
 
 
+struct m5mo_jpeg {
+	unsigned int main_size;		/* Main JPEG file size */
+	unsigned int thumb_size;	/* Thumbnail file size */
+	unsigned int jpeg_done;
+};
+
 struct m5mo_ctrl_t {
 	int8_t  opened;
 	const struct  msm_camera_sensor_info 	*sensordata;
@@ -302,6 +319,8 @@ struct m5mo_ctrl_t {
 	struct m5mo_userset settings;
 	struct m5mo_isp isp;
 	struct m5mo_focus focus;
+	
+	struct m5mo_jpeg jpeg;
 	
 	char *fw_version;
 	

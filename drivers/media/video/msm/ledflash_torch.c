@@ -40,6 +40,11 @@ MODULE_LICENSE("GPL");
 #define TORCH_EN	62
 #define TORCH_SET	63
 
+#if defined(CONFIG_KOR_MODEL_SHV_E160S) || defined(CONFIG_KOR_MODEL_SHV_E160K) ||defined(CONFIG_KOR_MODEL_SHV_E160L) || defined (CONFIG_JPN_MODEL_SC_05D)
+#define TORCH_MINOR 216
+#endif
+
+
 extern unsigned int get_hw_rev(void);
 
 struct class *ledflash_class;
@@ -64,30 +69,24 @@ static ssize_t ledflash_torch_onoff_store(struct device *dev, struct device_attr
 	
 	printk("[Torch] %s : torch = %c\n", __func__,*buf);
 	
-	if (value >= '1') {	/* Torch ON */	
+	if (value == '1') {	/* Torch ON */	
 	// Flash Analog Switch - AP
 #if defined (CONFIG_USA_MODEL_SGH_I717)
  		if (get_hw_rev() >= 0x05)
- 			gpio_set_value_cansleep(CAM_SW_EN, 1);  
-#elif defined (CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I757M)
- 		if (get_hw_rev() >= 0x06)
- 			gpio_set_value_cansleep(CAM_SW_EN, 1);  
+ 			gpio_set_value_cansleep(CAM_SW_EN, 1);
 #endif
 		gpio_set_value_cansleep(TORCH_EN, 1);
 		gpio_set_value_cansleep(TORCH_SET, 1);
 		mdelay(1); 
-	} else {			/* Torch OFF */	
+	} else {			/* Torch OFF */
 	// Flash Analog Switch - ISP
 #if defined (CONFIG_USA_MODEL_SGH_I717)
 	 	if (get_hw_rev() >= 0x05)
-	 		gpio_set_value_cansleep(CAM_SW_EN, 0);  
-#elif defined (CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I757M)
- 		if (get_hw_rev() >= 0x06)
-	 		gpio_set_value_cansleep(CAM_SW_EN, 0);  
-#endif	
+	 		gpio_set_value_cansleep(CAM_SW_EN, 0); 
+#endif
 		gpio_set_value_cansleep(TORCH_EN, 0);
 		gpio_set_value_cansleep(TORCH_SET, 0);
-		mdelay(1); 
+		mdelay(1);
 	}
 	
 	return size;
@@ -100,7 +99,11 @@ static const struct file_operations ledflash_fops = {
 };
 
 static struct miscdevice ledflash_device = {
+#if defined(CONFIG_KOR_MODEL_SHV_E160S) || defined(CONFIG_KOR_MODEL_SHV_E160K) ||defined(CONFIG_KOR_MODEL_SHV_E160L) || defined (CONFIG_JPN_MODEL_SC_05D)
+	.minor = TORCH_MINOR,
+#else  
 	.minor = MISC_DYNAMIC_MINOR,
+#endif	
 	.name = "ledflash",
 	.fops = &ledflash_fops,
 };
@@ -135,10 +138,6 @@ static int ledflash_init(void)
 
 #if defined (CONFIG_USA_MODEL_SGH_I717)
 	 if (get_hw_rev() >= 0x05) {
-		gpio_tlmm_config(GPIO_CFG(CAM_SW_EN, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
- 	}
-#elif defined (CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I757M)
-	 if (get_hw_rev() >= 0x06) {
 		gpio_tlmm_config(GPIO_CFG(CAM_SW_EN, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
  	}
 #endif 

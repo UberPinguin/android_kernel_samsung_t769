@@ -41,7 +41,6 @@
 
 #define TAOS_DEBUG 0
 #define IRQ_WAKE 1
-
 #define OFFSET_FILE_PATH	"/efs/prox_cal"
 
 /* Triton register offsets */
@@ -142,7 +141,6 @@
 #define PRX_CONFIG_PARAM		0x00
 #define PRX_PULSE_CNT_PARAM		0x0A
 #define PRX_GAIN_PARAM			0x28	// 21
-#define LIGHT_BUFFER_NUM 5
 
 #define SENSOR_DEFAULT_DELAY		(200)
 #define SENSOR_MAX_DELAY			(2000)
@@ -150,7 +148,6 @@
 #define ABS_WAKE                        (ABS_MISC)
 #define ABS_CONTROL_REPORT              (ABS_THROTTLE)
 #define OFFSET_ARRAY_LENGTH		32
-
 /* global var */
 struct taos_data *taos;
 static struct i2c_client *opt_i2c_client = NULL;
@@ -165,41 +162,12 @@ static short  isTaosSensor = 1;
 static int irdata = 0;		//Ch[1]
 static int cleardata = 0;	//Ch[0]
 static u16 chipID=0;
+static int count = 0;
 
 static TAOS_ALS_FOPS_STATUS taos_als_status = TAOS_ALS_CLOSED;
 static TAOS_PRX_FOPS_STATUS taos_prx_status = TAOS_PRX_CLOSED;
 static TAOS_CHIP_WORKING_STATUS taos_chip_status = TAOS_CHIP_UNKNOWN;
 static TAOS_PRX_DISTANCE_STATUS taos_prox_dist = TAOS_PRX_DIST_UNKNOWN;
-#if defined(CONFIG_USA_MODEL_SGH_T769)
-static const int adc_table[4] = {
-	15,
-	150,
-	1350,
-	13000,
-};
-#elif defined(CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_CAN_MODEL_SGH_I577R)
-static const int adc_table[4] = {
-	15,
-	163,
-	1650,
-	15700,
-};
-#elif defined(CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I757M)
-static const int adc_table[4] = {
-	15,
-	160,
-	1600,
-	16000,
-};
-#else
-static const int adc_table[4] = {
-	15,
-	150,
-	1450,
-	13000,
-};
-#endif
-
 static void set_prox_pulsecnt(struct taos_data *taos, u8 pulse_cnt);
 static int proximity_open_pulsecnt(struct taos_data *taos);
 
@@ -533,7 +501,6 @@ static ssize_t proximity_adc_show(struct device *dev,	struct device_attribute *a
 		proximity_value = TAOS_PROX_MAX;
 	return sprintf(buf,"%d\n", proximity_value);
 }
-
 static void set_prox_pulsecnt(struct taos_data *taos, u8 pulse_cnt)
 {
 	int ret = 0;
@@ -669,7 +636,6 @@ static ssize_t proximity_cal_show(struct device *dev,
 	pr_err("%s: offset = %d\n", __func__, taos->calibrated_pulse_count);
 	return sprintf(buf, "%d,%d\n", taos->calibrated_pulse_count, PRX_THRSH_HI_PARAM);
 }
-
 static ssize_t proximity_avg_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct input_dev *input_data = to_input_dev(dev);
@@ -682,7 +648,6 @@ static ssize_t proximity_avg_store(struct device *dev, struct device_attribute *
 {
 	return proximity_enable_store(dev, attr, buf, size);
 }	
-
 static DEVICE_ATTR(prox_cal, 0644, proximity_cal_show,
 	proximity_cal_store);
 static DEVICE_ATTR(poll_delay, S_IRUGO | S_IWUSR | S_IWGRP,
@@ -868,31 +833,14 @@ static irqreturn_t taos_irq_handler(int irq, void *dev_id)
 
 static void taos_work_func_light(struct work_struct *work)
 {
-	int i=0;
 	struct taos_data *taos = container_of(work, struct taos_data, work_light);
 	int lux=0;
-	state_type level_state = LIGHT_INIT;	
 
 	//read value 	
 	lux =  taos_get_lux();
 
-	for (i=0; ARRAY_SIZE(adc_table); i++)
-		if(lux <= adc_table[i])
-			break;
-
-	if(taos->light_buffer == i) {
-		if(taos->light_count++ == LIGHT_BUFFER_NUM) {
-#if TAOS_DEBUG
-			printk("[TAOS_LIGHT] taos_work_func_light called lux=[%d], ch[0]=[%d], ch[1]=[%d]\n", lux, cleardata, irdata);
-#endif			
-			input_report_abs(taos->light_input_dev, ABS_MISC, lux);
-			input_sync(taos->light_input_dev);
-			taos->light_count = 0;
-		}
-	} else {
-		taos->light_buffer = i;
-		taos->light_count = 0;
-	}
+	input_report_abs(taos->light_input_dev, ABS_MISC, lux);
+	input_sync(taos->light_input_dev);
 }
 
 static enum hrtimer_restart taos_timer_func(struct hrtimer *timer)
@@ -1234,8 +1182,8 @@ taos_chip_on(void)
 	if ( fail_num == 0) 
 	{			
 #if IRQ_WAKE    
-        	err = set_irq_wake(taos ->irq, 1);  // enable : 1, disable : 0
-        	printk("[TAOS] register wakeup source = %d\n",err);
+        	err = enable_irq_wake(taos ->irq);
+	    	printk("[TAOS] register wakeup source = %d\n",err);
         	if (err) 
         		printk("[TAOS] register wakeup source failed\n");
 #endif    
@@ -1257,7 +1205,7 @@ static int taos_chip_off(void)
 	gprintk("[TAOS] %s \n",__func__);
 	
 #if IRQ_WAKE    
-	err = set_irq_wake(taos ->irq, 0); // enable : 1, disable : 0
+	err = disable_irq_wake(taos ->irq);
 	if (err) 
 		printk("[TAOS] register wakeup source failed\n");
 #endif
@@ -1299,15 +1247,10 @@ void taos_on(struct taos_data *taos, int type)
             taos_chip_on();
        }
 
-#if IRQ_WAKE    
-	err = set_irq_wake(taos ->irq, 1);  // enable : 1, disable : 0
-	if (err) 
-		printk("[TAOS] register wakeup source failed\n");
-#endif    
 	if(type == TAOS_PROXIMITY || type == TAOS_ALL)
 	{
 		printk("enable irq for proximity\n");
-		enable_irq(taos ->irq);        
+		enable_irq(taos ->irq);
 		proximity_enable = 1;     
         taos_prx_status = TAOS_PRX_OPENED;
               
@@ -1354,7 +1297,7 @@ void taos_off(struct taos_data *taos, int type)
 		hrtimer_cancel(&taos->ptimer);              
     	    proximity_enable = 0;
         	taos_prx_status = TAOS_PRX_CLOSED;
-		proximity_value = 0;  // wonjun initialize proximity_value			  
+		proximity_value = 0;  // wonjun initialize proximity_value
 	}
     
     	if(type ==TAOS_LIGHT || type==TAOS_ALL)
@@ -1579,13 +1522,11 @@ if(pdata) {
 		pr_err("%s: could not create device file(%s)!\n", __func__,
 			dev_attr_proximity_avg.attr.name);
 	}
-
 	if (device_create_file(taos->proximity_dev,
 		&dev_attr_prox_cal) < 0) {
 		pr_err("%s: could not create device file(%s)!\n", __func__,
 			dev_attr_prox_cal.attr.name);
 	}
-
 	dev_set_drvdata(taos->proximity_dev, taos);
 	
 	/* set sysfs for light sensor */
@@ -1616,12 +1557,6 @@ if(pdata) {
 	}
 
 	printk("[TAOS] register irq = %d\n",TAOS_INT);
-#if IRQ_WAKE    
-	err = set_irq_wake(TAOS_INT, 1);
-	if (err) 
-		printk("[TAOS] register wakeup source failed\n");
-#endif
-
 	taos->irq = TAOS_INT;
 #endif
 
@@ -1806,4 +1741,3 @@ module_exit( taos_opt_exit );
 MODULE_AUTHOR("SAMSUNG");
 MODULE_DESCRIPTION("Optical Sensor driver for taosp002s00f");
 MODULE_LICENSE("GPL");
-

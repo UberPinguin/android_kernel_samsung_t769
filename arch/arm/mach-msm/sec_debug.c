@@ -27,9 +27,10 @@
 #include <mach/sec_debug.h>
 #include <mach/msm_iomap.h>
 #include <linux/seq_file.h>
-#include <linux/smp_lock.h>
+// #include <linux/smp_lock.h>
+#include <mach/sec_switch.h>
 
-#define RESTART_REASON_ADDR 0x2A05F65C
+#define RESTART_REASON_ADDR 0x65C
 
 #define LOCKUP_FIRST_KEY KEY_VOLUMEUP
 #define LOCKUP_SECOND_KEY KEY_VOLUMEDOWN
@@ -53,8 +54,9 @@ enum sec_debug_upload_cause_t {
 	UPLOAD_CAUSE_CP_ERROR_FATAL		= 0x66666666,
 	UPLOAD_CAUSE_LPASS_ERROR_FATAL	= 0x77777777,
 	UPLOAD_CAUSE_MDM_ERROR_FATAL	= 0xAAAAAAAA,
-	UPLOAD_CAUSE_EXT4_ERROR			= 0xEEEEEEEE,
 };
+
+extern int sec_switch_get_attached_device(void);
 
 struct sec_debug_mmu_reg_t {
 	int SCTLR;
@@ -175,6 +177,9 @@ static struct fuelgauge_debug gExcpFGLog[FG_LOG_MAX] __cacheline_aligned;
 #ifdef CONFIG_SEC_DEBUG_MDP_LOG
 static struct mdp_log gExcpMDPLog[MDP_LOG_MAX] __cacheline_aligned;
 #endif
+#ifdef CONFIG_SEC_DEBUG_POWERCOLLAPSE_LOG
+static struct powercollapse_log gExcpPowerCollapseLog[POWERCOLLAPSE_LOG_MAX] __cacheline_aligned;
+#endif
 #ifdef CONFIG_SEC_DEBUG_SDIO_LOG
 static struct sdio_log gExcpSDIOLog[SDIO_LOG_MAX] __cacheline_aligned;
 #endif
@@ -190,6 +195,9 @@ atomic_t gExcpFGLogIdx = ATOMIC_INIT(-1);
 #endif
 #ifdef CONFIG_SEC_DEBUG_MDP_LOG
 atomic_t gExcpMDPLogIdx = ATOMIC_INIT(-1);
+#endif
+#ifdef CONFIG_SEC_DEBUG_POWERCOLLAPSE_LOG
+atomic_t gExcpPowerCollapseLogIdx = ATOMIC_INIT(-1);
 #endif
 #ifdef CONFIG_SEC_DEBUG_SDIO_LOG
 atomic_t gExcpSDIOLogIdx = ATOMIC_INIT(-1);
@@ -210,6 +218,9 @@ struct sec_debug_nocache{
 #ifdef CONFIG_SEC_DEBUG_MDP_LOG
 	struct mdp_log gExcpMDPLog[MDP_LOG_MAX] ;
 #endif
+#ifdef CONFIG_SEC_DEBUG_POWERCOLLAPSE_LOG
+	struct powercollapse_log gExcpPowerCollapseLog[POWERCOLLAPSE_LOG_MAX] ;
+#endif
 #ifdef CONFIG_SEC_DEBUG_SDIO_LOG
 	struct sdio_log gExcpSDIOLog[SDIO_LOG_MAX] ;
 #endif
@@ -228,6 +239,9 @@ struct sec_debug_nocache{
 #endif
 #ifdef CONFIG_SEC_DEBUG_MDP_LOG
 	atomic_t gExcpMDPLogIdx;
+#endif
+#ifdef CONFIG_SEC_DEBUG_POWERCOLLAPSE_LOG
+	atomic_t gExcpPowerCollapseLogIdx;
 #endif
 #ifdef CONFIG_SEC_DEBUG_SDIO_LOG
 	atomic_t gExcpSDIOLogIdx;
@@ -276,7 +290,7 @@ spinlock_t rwsem_debug_lock;
 #endif /* CONFIG_SEC_DEBUG_SEMAPHORE_LOG */
 
 /* onlyjazz.ed26 : make the restart_reason global to enable it early in sec_debug_init and share with restart functions */
-void *restart_reason = NULL;
+static void *restart_reason = NULL;
 void *sec_dbg_buf_ptr = NULL;
 unsigned int restart_reason_val = 0; // kmj_ef13
 
@@ -506,23 +520,11 @@ static void sec_debug_save_context(void)
 unsigned int sec_get_lpm_mode(void)
 {
 	unsigned int ret = 0;
-	// void *restart_reason;
 
 	pr_info("(%s) %x\n", __func__, reset_reason);
 	if(reset_reason == RESET_REASON_LPM)
 		ret = 1;
-#if 0
-	restart_reason = ioremap_nocache(RESTART_REASON_ADDR, SZ_4K);
-	if( readl(restart_reason) == 0x77665506)
-	        ret = 1;
-	else
-	        ret = 0;
-	        
-	iounmap(restart_reason);
-
-#endif
 	pr_emerg("(%s) %x\n", __func__, ret);
-
 	return ret;
 }
 
@@ -560,10 +562,16 @@ static void sec_debug_set_upload_cause(enum sec_debug_upload_cause_t type)
 	pr_emerg("(%s) %x\n", __func__, type);
 }
 
+#ifdef CONFIG_BATTERY_SEC
+extern void disable_charging_before_reset(void);
+#endif
 void sec_debug_hw_reset(void)
 {
 	pr_emerg("(%s) %s\n", __func__, gkernel_sec_build_info);
 	pr_emerg("(%s) rebooting...\n", __func__);
+#ifdef CONFIG_BATTERY_SEC
+	disable_charging_before_reset();
+#endif
 
 	flush_cache_all();
 
@@ -584,8 +592,22 @@ static int sec_debug_panic_handler(struct notifier_block *nb,
 	if (!enable) {
 		/* reset is moved to panic() function */
 //		sec_debug_hw_reset();
+		if((DEV_TYPE_JIG == sec_switch_get_attached_device()) &
+				(!strcmp(buf, "Commercial Dump"))) {
+
+			sec_debug_set_upload_cause(UPLOAD_CAUSE_FORCED_UPLOAD);
+			pr_emerg("(%s) %s\n", __func__, gkernel_sec_build_info);
+			pr_emerg("(%s) rebooting...\n", __func__);
+
+			flush_cache_all();
+			outer_flush_all();
+			arch_reset(0, "sec_debug_comm_dump");
+
+			while (1) ;
+		}
 		return -1;
 	}
+	else
 
 	if (!strcmp(buf, "User Fault"))
 		sec_debug_set_upload_cause(UPLOAD_CAUSE_USER_FAULT);
@@ -597,8 +619,6 @@ static int sec_debug_panic_handler(struct notifier_block *nb,
 		sec_debug_set_upload_cause(UPLOAD_CAUSE_CP_ERROR_FATAL);
 	else if (!strcmp(buf, "lpass"))
 		sec_debug_set_upload_cause(UPLOAD_CAUSE_LPASS_ERROR_FATAL);
-	else if (!strncmp(buf, "EXT4-fs", 7))
-		sec_debug_set_upload_cause(UPLOAD_CAUSE_EXT4_ERROR);
 	else
 		sec_debug_set_upload_cause(UPLOAD_CAUSE_KERNEL_PANIC);
 
@@ -609,9 +629,7 @@ static int sec_debug_panic_handler(struct notifier_block *nb,
 #endif
 
 	sec_debug_dump_stack();
-	charm_assert_panic();
-	/* reset is moved to panic() function */
-//	sec_debug_hw_reset();
+	sec_debug_hw_reset();
 
 	return 0;
 }
@@ -637,19 +655,66 @@ int sec_debug_dump_stack(void)
 
 void sec_debug_check_crash_key(unsigned int code, int value)
 {
-	static enum { NONE, STEP1, STEP2} state = NONE;
+	static enum { NONE, STEP1, STEP2, STEP3, STEP4, STEP5, STEP6, STEP7, STEP8, STEP9, STEP10} state = NONE;
 
-	if (!enable)
+	if (!enable) {
+        if(DEV_TYPE_JIG == sec_switch_get_attached_device()) {
+    		switch (state) {
+    		case NONE:
+    			state = (code == LOCKUP_FIRST_KEY && value) ? STEP1 : NONE;
+    			break;
+     		case STEP1:
+    			state = (code == LOCKUP_SECOND_KEY && value) ? STEP2 : NONE;
+    			break;
+     		case STEP2:
+    			state = (code == LOCKUP_FIRST_KEY && !value) ? STEP3 : NONE;
+    			break;
+     		case STEP3:
+    			state = (code == LOCKUP_FIRST_KEY && value) ? STEP4 : NONE;
+    			break;
+     		case STEP4:
+    			state = (code == LOCKUP_FIRST_KEY && !value) ? STEP5 : NONE;
+    			break;
+     		case STEP5:
+    			state = (code == LOCKUP_FIRST_KEY && value) ? STEP6 : NONE;
+    			break;
+     		case STEP6:
+    			state = (code == LOCKUP_SECOND_KEY && !value) ? STEP7 : NONE;
+    			break;
+     		case STEP7:
+    			state = (code == LOCKUP_SECOND_KEY && value) ? STEP8 : NONE;
+    			break;
+     		case STEP8:
+    			state = (code == LOCKUP_SECOND_KEY && !value) ? STEP9 : NONE;
+    			break;
+     		case STEP9:
+    			state = (code == LOCKUP_SECOND_KEY && value) ? STEP10 : NONE;
+                break;
+    		case STEP10:
+    			if (code == LOCKUP_THIRD_KEY && value) {
+    				dump_all_task_info();
+    				dump_cpu_stat();
+    				panic("Commercial Dump");
+    			}
+    			else
+    			    state = NONE;
+    			break;
+    		default:
+    			break;
+    		}
+        }
 		return;
+	}
 
 	//pr_info("%s: %d %d\n", __func__, code, value);
 #if defined (CONFIG_KOR_MODEL_SHV_E110S) || defined (CONFIG_KOR_MODEL_SHV_E120S) || defined (CONFIG_KOR_SHV_E120L_HD720) \
- || defined (CONFIG_KOR_MODEL_SHV_E120K) || defined(CONFIG_KOR_MODEL_SHV_E160S) || defined(CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L)
+ || defined (CONFIG_KOR_MODEL_SHV_E120K) || defined(CONFIG_KOR_MODEL_SHV_E160S) || defined(CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L) \
+ || defined (CONFIG_JPN_MODEL_SC_05D)
 #if defined (CONFIG_KOR_SHV_E120L_HD720)
 	if(get_hw_rev() >= 0x01)//SHV_E120L
 #elif defined (CONFIG_KOR_MODEL_SHV_E120S) || defined (CONFIG_KOR_MODEL_SHV_E120K)
 	if(get_hw_rev() >= 0x06)//SHV_E120S
-#elif defined(CONFIG_KOR_MODEL_SHV_E160S) || defined(CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L)
+#elif defined(CONFIG_KOR_MODEL_SHV_E160S) || defined(CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L) || defined (CONFIG_JPN_MODEL_SC_05D)
 	if(get_hw_rev() >= 0x02)//SHV_E160S
 #else
 	if(get_hw_rev() > 0x04)// SHV_E110S
@@ -700,6 +765,8 @@ void sec_debug_check_crash_key(unsigned int code, int value)
 			else
 			        state = NONE;
 			break;
+        default:
+            break;
 		}
 	}
 }
@@ -710,6 +777,8 @@ static struct notifier_block nb_reboot_block = {
 
 static struct notifier_block nb_panic_block = {
 	.notifier_call = sec_debug_panic_handler,
+	.priority = -20,  /* Register this at the end of the list 
+                         to run other handlers in advance */
 };
 
 static void sec_debug_set_build_info(void)
@@ -726,7 +795,7 @@ __init int sec_debug_init(void)
 {
 	pr_emerg("(%s)\n", __func__);
 
-	restart_reason = ioremap_nocache(RESTART_REASON_ADDR, SZ_4K);
+	restart_reason = MSM_IMEM_BASE + RESTART_REASON_ADDR;
 	/* check restart_reason here */
 	pr_emerg("(%s) reset_reason : 0x%x\n", __func__, reset_reason);
 
@@ -765,6 +834,9 @@ __init int sec_debug_init(void)
 #ifdef CONFIG_SEC_DEBUG_MDP_LOG
 		atomic_set(&(sec_debug_nocache_log->gExcpMDPLogIdx),-1);
 #endif
+#ifdef CONFIG_SEC_DEBUG_POWERCOLLAPSE_LOG
+		atomic_set(&(sec_debug_nocache_log->gExcpPowerCollapseLogIdx),-1);
+#endif
 #ifdef CONFIG_SEC_DEBUG_SDIO_LOG
 		atomic_set(&(sec_debug_nocache_log->gExcpSDIOLogIdx),-1);
 #endif
@@ -802,6 +874,8 @@ void sec_debug_task_sched_log(int cpu, struct task_struct *task)
 		strcpy(sec_debug_nocache_log->gExcpTaskLog[cpu][i].comm, task->comm);
 		sec_debug_nocache_log->gExcpTaskLog[cpu][i].pid = task->pid;
 	}
+/*  not to log when DEBUG_LEVEL_LOW */
+/*
 	else
 	{
 		i = atomic_inc_return(&gExcpTaskLogIdx[cpu]) & (SCHED_LOG_MAX - 1);
@@ -809,6 +883,7 @@ void sec_debug_task_sched_log(int cpu, struct task_struct *task)
 		strcpy(gExcpTaskLog[cpu][i].comm, task->comm);
 		gExcpTaskLog[cpu][i].pid = task->pid;
 	}
+*/
 }
 
 void sec_debug_timer_log(unsigned int type, int int_lock, void *fn)
@@ -824,6 +899,8 @@ void sec_debug_timer_log(unsigned int type, int int_lock, void *fn)
 		sec_debug_nocache_log->gExcpTimerLog[cpu][i].int_lock = int_lock;
 		sec_debug_nocache_log->gExcpTimerLog[cpu][i].fn = (void *)fn;
 	}
+/*  not to log when DEBUG_LEVEL_LOW */
+/*
 	else
 	{
 		i = atomic_inc_return(&gExcpTimerLogIdx[cpu]) & (SCHED_LOG_MAX - 1);
@@ -832,6 +909,7 @@ void sec_debug_timer_log(unsigned int type, int int_lock, void *fn)
 		gExcpTimerLog[cpu][i].int_lock = int_lock;
 		gExcpTimerLog[cpu][i].fn = (void *)fn;
 	}
+*/
 }
 
 void sec_debug_irq_sched_log(unsigned int irq, void *fn, int en)
@@ -847,6 +925,8 @@ void sec_debug_irq_sched_log(unsigned int irq, void *fn, int en)
 		sec_debug_nocache_log->gExcpIrqLog[cpu][i].fn = (void *)fn;
 		sec_debug_nocache_log->gExcpIrqLog[cpu][i].en = en;
 	}
+/*  not to log when DEBUG_LEVEL_LOW */
+/*
 	else
 	{
 		i = atomic_inc_return(&gExcpIrqLogIdx[cpu]) & (SCHED_LOG_MAX - 1);
@@ -855,6 +935,7 @@ void sec_debug_irq_sched_log(unsigned int irq, void *fn, int en)
 		gExcpIrqLog[cpu][i].fn = (void *)fn;
 		gExcpIrqLog[cpu][i].en = en;
 	}
+*/
 }
 
 void sec_debug_irq_sched_log_end(void)
@@ -867,11 +948,14 @@ void sec_debug_irq_sched_log_end(void)
 		i = atomic_inc_return(&(sec_debug_nocache_log->gExcpIrqLogIdx[cpu])) & (SCHED_LOG_MAX - 1);
 		sec_debug_nocache_log->gExcpIrqLog[cpu][i].elapsed_time = cpu_clock(cpu) - sec_debug_nocache_log->gExcpIrqLog[cpu][i].time;
 	}
+/*  not to log when DEBUG_LEVEL_LOW */
+/*
 	else
 	{
 		i = atomic_read(&gExcpIrqLogIdx[cpu]) & (SCHED_LOG_MAX - 1);
 		gExcpIrqLog[cpu][i].elapsed_time = cpu_clock(cpu) -gExcpIrqLog[cpu][i].time;
 	}
+*/
 }
 
 #ifdef CONFIG_SEC_DEBUG_IRQ_EXIT_LOG
@@ -888,6 +972,8 @@ void sec_debug_irq_enterexit_log(unsigned int irq, unsigned long long start_time
 		sec_debug_nocache_log->gExcpIrqEnterExitLog[cpu][i].irq = irq;
 		sec_debug_nocache_log->gExcpIrqEnterExitLog[cpu][i].elapsed_time = sec_debug_nocache_log->gExcpIrqEnterExitLog[cpu][i].end_time -start_time;
 	}
+/*  not to log when DEBUG_LEVEL_LOW */
+/*
 	else
 	{
 		i = atomic_inc_return(&gExcpIrqEnterExitLogIdx[cpu]) & (SCHED_LOG_MAX - 1);
@@ -896,6 +982,7 @@ void sec_debug_irq_enterexit_log(unsigned int irq, unsigned long long start_time
 		gExcpIrqEnterExitLog[cpu][i].irq = irq;
 		gExcpIrqEnterExitLog[cpu][i].elapsed_time = gExcpIrqEnterExitLog[cpu][i].end_time -start_time;
 	}
+*/
 }
 #endif
 #endif /* CONFIG_SEC_DEBUG_SCHED_LOG */
@@ -1133,6 +1220,8 @@ void sec_debug_dcvs_log(int cpu_no, unsigned int prev_freq, unsigned int new_fre
 		sec_debug_nocache_log->gExcpDcvsLog[i].new_freq = new_freq;
 		sec_debug_nocache_log->gExcpDcvsLog[i].time = cpu_clock(cpu_no);
 	}
+/*  not to log when DEBUG_LEVEL_LOW */
+/*
 	else
 	{
 		i = atomic_inc_return(&gExcpDcvsLogIdx) & (DCVS_LOG_MAX - 1);
@@ -1141,6 +1230,7 @@ void sec_debug_dcvs_log(int cpu_no, unsigned int prev_freq, unsigned int new_fre
 		gExcpDcvsLog[i].new_freq = new_freq;
 		gExcpDcvsLog[i].time = cpu_clock(cpu_no);
 	}
+*/
 }
 #endif
 
@@ -1158,6 +1248,8 @@ void sec_debug_fuelgauge_log(unsigned int voltage, unsigned short soc, unsigned 
 		sec_debug_nocache_log->gExcpFGLog[i].soc = soc;
 		sec_debug_nocache_log->gExcpFGLog[i].charging_status = charging_status;
 	}
+/*  not to log when DEBUG_LEVEL_LOW */
+/*
 	else
 	{
 		i = atomic_inc_return(&gExcpFGLogIdx) & (FG_LOG_MAX - 1);
@@ -1166,6 +1258,8 @@ void sec_debug_fuelgauge_log(unsigned int voltage, unsigned short soc, unsigned 
 		gExcpFGLog[i].soc = soc;
 		gExcpFGLog[i].charging_status = charging_status;
 	}
+
+*/
 }
 #endif
 
@@ -1188,6 +1282,8 @@ void sec_debug_mdp_log(unsigned int value1, unsigned int value2)
 		sec_debug_nocache_log->gExcpMDPLog[i].value1 = value1;
 		sec_debug_nocache_log->gExcpMDPLog[i].value2 = value2;
 	}
+/*  not to log when DEBUG_LEVEL_LOW */
+/*
 	else
 	{
 		i = atomic_inc_return(&gExcpMDPLogIdx) & (MDP_LOG_MAX - 1);
@@ -1195,11 +1291,40 @@ void sec_debug_mdp_log(unsigned int value1, unsigned int value2)
 		gExcpMDPLog[i].value1 = value1;
 		gExcpMDPLog[i].value2 = value2;
 	}
+*/
 }
 
 void sec_debug_mdp_enable(int enable)
 {
 	sec_debug_mdp_log_enabled = enable;
+}
+
+#endif
+
+#ifdef CONFIG_SEC_DEBUG_POWERCOLLAPSE_LOG
+
+void sec_debug_powercollapse_log(unsigned int value1, unsigned int value2)
+{
+    unsigned int i;
+    int cpu = smp_processor_id();
+
+	if (sec_debug_nocache_log)
+	{
+		i = atomic_inc_return(&(sec_debug_nocache_log->gExcpPowerCollapseLogIdx)) & (POWERCOLLAPSE_LOG_MAX - 1);
+		sec_debug_nocache_log->gExcpPowerCollapseLog[i].time = cpu_clock(cpu);
+		sec_debug_nocache_log->gExcpPowerCollapseLog[i].value1 = value1;
+		sec_debug_nocache_log->gExcpPowerCollapseLog[i].value2 = value2;
+	}
+/*  not to log when DEBUG_LEVEL_LOW */
+/*
+	else
+	{
+		i = atomic_inc_return(&gExcpPowerCollapseLogIdx) & (POWERCOLLAPSE_LOG_MAX - 1);
+		gExcpPowerCollapseLog[i].time = cpu_clock(cpu);
+		gExcpPowerCollapseLog[i].value1 = value1;
+		gExcpPowerCollapseLog[i].value2 = value2;
+	}
+*/
 }
 
 #endif
@@ -1223,6 +1348,8 @@ void sec_debug_sdio_log(unsigned int value1, unsigned int value2)
 		sec_debug_nocache_log->gExcpSDIOLog[i].value1 = value1;
 		sec_debug_nocache_log->gExcpSDIOLog[i].value2 = value2;
 	}
+/*  not to log when DEBUG_LEVEL_LOW */
+/*
 	else
 	{
 		i = atomic_inc_return(&gExcpSDIOLogIdx) & (SDIO_LOG_MAX - 1);
@@ -1230,6 +1357,7 @@ void sec_debug_sdio_log(unsigned int value1, unsigned int value2)
 		gExcpSDIOLog[i].value1 = value1;
 		gExcpSDIOLog[i].value2 = value2;
 	}
+*/
 }
 
 void sec_debug_sdio_enable(int enable)
@@ -1383,4 +1511,3 @@ static int __init sec_debug_reset_reason_init(void)
 }
 
 device_initcall(sec_debug_reset_reason_init);
-

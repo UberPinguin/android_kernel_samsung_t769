@@ -68,31 +68,55 @@
 #define FULL_SOC_LOW		9250
 #define FULL_SOC_HIGH		9680
 #define FULL_KEEP_SOC		30
-#elif defined(CONFIG_USA_MODEL_SGH_I717)
-#define EMPTY_COND_SOC 		100
-#define EMPTY_SOC 			0
-//#define FULL_SOC		9450
-#define FULL_SOC_DEFAULT	9600
-#define FULL_SOC_LOW		9600
-#define FULL_SOC_HIGH		9600
-#define FULL_KEEP_SOC		30
-#define RCOMP_2ND		0xF01F
-#elif defined(CONFIG_USA_MODEL_SGH_T769) || defined(CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_CAN_MODEL_SGH_I577R)
+#elif defined(CONFIG_KOR_MODEL_SHV_E160S) || defined(CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L) || defined (CONFIG_JPN_MODEL_SC_05D)
 #define EMPTY_COND_SOC 		100
 #define EMPTY_SOC 			20
+//#define FULL_SOC		9450
+#define FULL_SOC_DEFAULT	9450
+#define FULL_SOC_LOW		9350
+#define FULL_SOC_HIGH		9780
+#define FULL_KEEP_SOC		30
+#elif defined(CONFIG_USA_MODEL_SGH_I717)
+#define EMPTY_COND_SOC		100
+#define EMPTY_SOC		0
+//#define FULL_SOC		9450
+#define FULL_SOC_DEFAULT	9500
+#define FULL_SOC_LOW		9500
+#define FULL_SOC_HIGH		9530
+#define FULL_KEEP_SOC		30
+#define RCOMP_2ND		0xF01F
+#elif defined(CONFIG_USA_MODEL_SGH_T769) || \
+	defined(CONFIG_USA_MODEL_SGH_I577) || \
+	defined(CONFIG_CAN_MODEL_SGH_I577R)
+#define EMPTY_COND_SOC		100
+#define EMPTY_SOC		20
 //#define FULL_SOC		9450
 #define FULL_SOC_DEFAULT	9510
 #define FULL_SOC_LOW		9510
-#define FULL_SOC_HIGH		9510
+#define FULL_SOC_HIGH		9540
 #define FULL_KEEP_SOC		30
+#elif defined(CONFIG_USA_MODEL_SGH_T989) || \
+	defined(CONFIG_USA_MODEL_SGH_I727)
+#define EMPTY_COND_SOC		100
+#define EMPTY_SOC		50
+//#define FULL_SOC		9400
+#define FULL_SOC_DEFAULT	9400
+#define FULL_SOC_LOW		9400
+#define FULL_SOC_HIGH		9430
+#define FULL_KEEP_SOC		30
+
 #else
-#define EMPTY_COND_SOC 		100
-#define EMPTY_SOC 			20
+#define EMPTY_COND_SOC		100
+#define EMPTY_SOC		20
 //#define FULL_SOC		9450
 #define FULL_SOC_DEFAULT	9350
 #define FULL_SOC_LOW		9250
 #define FULL_SOC_HIGH		9680
 #define FULL_KEEP_SOC		30
+#endif
+
+#if defined(CONFIG_KOR_MODEL_SHV_E160S) ||  defined(CONFIG_KOR_MODEL_SHV_E160K) || defined (CONFIG_JPN_MODEL_SC_05D)
+#define ADJUST_SOC_OFFSET
 #endif
 
 /* default disable : TBT */
@@ -149,7 +173,7 @@ static int max17048_read_word_reg(struct i2c_client *client, int reg)
 		dev_err(&client->dev, "%s: err %d\n", __func__, ret);
 
 	mutex_unlock(&chip->mutex);
-	
+
 	return ret;
 }
 #endif
@@ -187,12 +211,6 @@ static int max17040_read_reg(struct i2c_client *client, int reg)
 	mutex_unlock(&chip->mutex);
 	
 	return ret;
-}
-
-static void max17040_reset(struct i2c_client *client)
-{
-	max17040_write_reg(client, MAX17040_CMD_MSB, 0x54);
-	max17040_write_reg(client, MAX17040_CMD_LSB, 0x00);
 }
 
 static void max17040_get_vcell(struct i2c_client *client)
@@ -243,6 +261,20 @@ static void max17040_get_soc(struct i2c_client *client)
 	if(psoc > EMPTY_COND_SOC) {
 		//temp_soc = ((psoc - EMPTY_SOC)*10000)/(FULL_SOC - EMPTY_SOC);
 		temp_soc = ((psoc - EMPTY_SOC)*10000)/(chip->full_soc - EMPTY_SOC);
+
+#ifdef ADJUST_SOC_OFFSET
+		if (temp_soc < 2100)
+			temp_soc = temp_soc;
+		else if (temp_soc < 3100)
+			temp_soc = temp_soc - ((temp_soc * 15) / 100 - 300);
+		else if (temp_soc < 7100)
+			temp_soc = temp_soc - 150;
+		else if (temp_soc < 8100)
+			temp_soc = temp_soc - ((temp_soc * -15)/100 + 1200);
+		else
+			temp_soc = temp_soc;
+#endif
+
 	} else
 		temp_soc = 0;
 	
@@ -277,7 +309,7 @@ static void max17040_get_version(struct i2c_client *client)
 	u8 lsb;
 
 	printk("%s : \n", __func__);
-	
+
 #ifdef FG_MAX17048_ENABLED
 	int data;
 
@@ -332,6 +364,27 @@ static void max17040_set_rcomp(struct i2c_client *client, u16 new_rcomp)
 	mutex_unlock(&chip->mutex);
 }
 
+static void max17040_reset(struct i2c_client *client)
+{
+	struct max17040_chip *chip = i2c_get_clientdata(client);
+
+	pr_info("%s :\n", __func__);
+
+	/* POR : CMD,5400h */
+	max17040_write_reg(client, MAX17040_CMD_MSB, 0x54);
+	max17040_write_reg(client, MAX17040_CMD_LSB, 0x00);
+	msleep(300);
+
+	max17040_set_rcomp(client, chip->new_rcomp);
+	chip->rcomp = max17040_get_rcomp(client);
+
+	/* Quick Start : MODE,4000h : TBT */
+	/*
+	max17040_write_reg(client, MAX17040_MODE_MSB, 0x40);
+	max17040_write_reg(client, MAX17040_MODE_LSB, 0x00);
+	*/
+}
+
 static void max17040_adjust_fullsoc(struct i2c_client *client)
 {
 	struct max17040_chip *chip = i2c_get_clientdata(client);
@@ -346,7 +399,7 @@ static void max17040_adjust_fullsoc(struct i2c_client *client)
 		if (temp_soc > (FULL_SOC_LOW + FULL_KEEP_SOC)) {
 			chip->full_soc = temp_soc - FULL_KEEP_SOC;
 		} else {
-			chip->full_soc = temp_soc;
+			chip->full_soc = FULL_SOC_LOW;
 		}
 	}
 
@@ -407,8 +460,7 @@ static enum power_supply_property max17040_battery_props[] = {
 #define SEC_FG_ATTR(_name)			\
 {						            \
 	.attr = { .name = #_name,		\
-		  .mode = 0664,			    \
-		  .owner = THIS_MODULE },	\
+		  .mode = 0664 },	\
 	.show = sec_fg_show_property,	\
 	.store = sec_fg_store,			\
 }
@@ -622,7 +674,7 @@ static int max17040_set_property(struct power_supply *psy,
 			max17040_set_rcomp(chip->client, RCOMP_2ND);
 			max17040_get_rcomp(chip->client);
 			break;
-			
+
 		case POWER_SUPPLY_STATUS_DISCHARGING:
 			max17040_set_rcomp(chip->client, chip->rcomp);
 			max17040_get_rcomp(chip->client);

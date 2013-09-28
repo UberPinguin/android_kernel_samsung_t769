@@ -9,11 +9,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
- * 02110-1301, USA.
- *
  */
 #include <linux/module.h>
 #include <linux/err.h>
@@ -130,8 +125,10 @@ u32 adie_codec_freq_supported(struct adie_codec_dev_profile *profile,
 		if (cur_adie_ops->codec_freq_supported != NULL)
 			rc = cur_adie_ops->codec_freq_supported(profile,
 							requested_freq);
-	} else
+	} else {
+		pr_info("%s : cur_adie_ops is NULL\n", __func__);
 		rc = -ENODEV;
+	}
 
 	return rc;
 }

@@ -25,7 +25,13 @@
 //		Just #include here !!
 //
 //============================================================
-#include "CeloxHD_V04_bin.c"
+#ifdef CONFIG_USA_MODEL_SGH_I757
+#include "CeloxHD_V06_bin.c"
+#else
+#include "OCTA_465_VC57_05_11_bin.c"
+#endif
+
+
 
 
 UINT8  ucVerifyBuffer[MELFAS_TRANSFER_LENGTH];		//	You may melloc *ucVerifyBuffer instead of this
@@ -1079,24 +1085,28 @@ static void mcsdl_delay(UINT32 nCount)
 static void mcsdl_print_result(int nRet)
 {
     if (nRet == MCSDL_RET_SUCCESS)
-    {	
+    {
         printk(" > MELFAS Firmware downloading SUCCESS.\n");
-		printk("MCSDL_RET_SUCCESS\n"); 
     }
     else
     {
         printk(" > MELFAS Firmware downloading FAILED  :  ");
         switch (nRet)
         {
+        case MCSDL_RET_SUCCESS                  		:   printk("MCSDL_RET_SUCCESS\n"); break;
         case MCSDL_RET_ERASE_FLASH_VERIFY_FAILED		:   printk("MCSDL_RET_ERASE_FLASH_VERIFY_FAILED\n"); break;
         case MCSDL_RET_PROGRAM_VERIFY_FAILED			:   printk("MCSDL_RET_PROGRAM_VERIFY_FAILED\n"); break;
+
         case MCSDL_RET_PROGRAM_SIZE_IS_WRONG			:   printk("MCSDL_RET_PROGRAM_SIZE_IS_WRONG\n"); break;
         case MCSDL_RET_VERIFY_SIZE_IS_WRONG				:   printk("MCSDL_RET_VERIFY_SIZE_IS_WRONG\n"); break;
         case MCSDL_RET_WRONG_BINARY						:   printk("MCSDL_RET_WRONG_BINARY\n"); break;
+
         case MCSDL_RET_READING_HEXFILE_FAILED       	:   printk("MCSDL_RET_READING_HEXFILE_FAILED\n"); break;
         case MCSDL_RET_FILE_ACCESS_FAILED       		:   printk("MCSDL_RET_FILE_ACCESS_FAILED\n"); break;
         case MCSDL_RET_MELLOC_FAILED     		  		:   printk("MCSDL_RET_MELLOC_FAILED\n"); break;
+
         case MCSDL_RET_WRONG_MODULE_REVISION     		:   printk("MCSDL_RET_WRONG_MODULE_REVISION\n"); break;
+
         default                             			:	printk("UNKNOWN ERROR. [0x%02X].\n", nRet); break;
         }
 

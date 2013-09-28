@@ -12,7 +12,6 @@
 #
 
 MKIMAGE         := $(srctree)/scripts/mkuboot.sh
-MKFIPS          := $(srctree)/scripts/mk_fipsbinary.sh
 
 ifneq ($(MACHINE),)
 include $(srctree)/$(MACHINE)/Makefile.boot
@@ -56,9 +55,6 @@ $(obj)/compressed/vmlinux: $(obj)/Image FORCE
 
 $(obj)/zImage:	$(obj)/compressed/vmlinux FORCE
 	$(call if_changed,objcopy)
-ifeq ($(CONFIG_CRYPTO_FIPS),y)
-	$(MKFIPS) $(obj)/zImage
-endif
 	@echo '  Kernel: $@ is ready'
 
 endif
@@ -74,12 +70,7 @@ else
 $(obj)/uImage: LOADADDR=$(ZRELADDR)
 endif
 
-ifeq ($(CONFIG_THUMB2_KERNEL),y)
-# Set bit 0 to 1 so that "mov pc, rx" switches to Thumb-2 mode
-$(obj)/uImage: STARTADDR=$(shell echo $(LOADADDR) | sed -e "s/.$$/1/")
-else
 $(obj)/uImage: STARTADDR=$(LOADADDR)
-endif
 
 $(obj)/uImage:	$(obj)/zImage FORCE
 	$(call if_changed,uimage)
@@ -107,6 +98,10 @@ install: $(obj)/Image
 zinstall: $(obj)/zImage
 	$(CONFIG_SHELL) $(srctree)/$(src)/install.sh $(KERNELRELEASE) \
 	$(obj)/zImage System.map "$(INSTALL_PATH)"
+
+uinstall: $(obj)/uImage
+	$(CONFIG_SHELL) $(srctree)/$(src)/install.sh $(KERNELRELEASE) \
+	$(obj)/uImage System.map "$(INSTALL_PATH)"
 
 zi:
 	$(CONFIG_SHELL) $(srctree)/$(src)/install.sh $(KERNELRELEASE) \

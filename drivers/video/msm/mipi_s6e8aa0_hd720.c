@@ -49,7 +49,7 @@ static char log_buffer[256] = {0,};
 #define GPIO_S6E8AA0_RESET (28)
 
 #define LCD_OFF_GAMMA_VALUE (0)
-#define DEFAULT_CANDELA_VALUE (160)
+#define DEFAULT_CANDELA_VALUE (160)   // 신뢰성 spec: celoxhd의 경우 160cd
 
 #define ACL_OFF_GAMMA_VALUE (60)
 
@@ -60,7 +60,7 @@ lcd_id_unknown = -1,
 lcd_id_a1_m3_line = 1,
 lcd_id_a1_sm2_line,
 lcd_id_a2_sm2_line_1,
-lcd_id_a2_sm2_line_2,
+lcd_id_a2_sm2_line_2, // celoxhd
 lcd_id_temp_7500k,
 lcd_id_temp_8500k,
 lcd_id_dcdc_STOD13A,
@@ -82,6 +82,7 @@ struct lcd_state_type{
 };
 
 #define LCD_ID_BUFFER_SIZE (8)
+
 
 struct lcd_setting {
 	struct device			*dev;
@@ -121,6 +122,9 @@ struct lcd_setting {
 	boolean	isSmartDimming;
 	boolean	isSmartDimming_loaded;
 	struct str_smart_dim smart;
+#ifdef MAPPING_TBL_AUTO_BRIGHTNESS
+	unsigned int			auto_brightness;
+#endif
 };
 
 static struct lcd_setting s6e8aa0_lcd;
@@ -471,25 +475,25 @@ static void update_LCD_SEQ_by_id(struct lcd_setting *destLCD)
 		pNew_GAMMA_SmartDimming_VALUE_SET_300cd = NULL;
 		if( destLCD->factory_id_line == lcd_id_a2_sm2_line_1 || destLCD->factory_id_line == lcd_id_a2_sm2_line_2)
 		{
-     		switch( destLCD->AID )
-     		{
-			    case 1:
+		switch( destLCD->AID )
+		{
+			case 1:
 					pNew_GAMMA_SmartDimming_VALUE_SET_300cd = (unsigned char*) GAMMA_SmartDimming_VALUE_SET_A2SM2_AID1_300cd;
-					LOG_ADD( " A2i AID1" );
+					LOG_ADD( " A2iAID1" );
 				break;
 				case 2:
 					pNew_GAMMA_SmartDimming_VALUE_SET_300cd = (unsigned char*) GAMMA_SmartDimming_VALUE_SET_A2SM2_AID2_300cd;
-					LOG_ADD( " A2i AID2" );
+					LOG_ADD( " A2iAID2" );
 				break;
 				case 3:
 					pNew_GAMMA_SmartDimming_VALUE_SET_300cd = (unsigned char*) GAMMA_SmartDimming_VALUE_SET_A2SM2_AID3_300cd;
-					LOG_ADD( " A2i AID3" );
+					LOG_ADD( " A2iAID3" );
 				break;
-                default:
+				default:
                 {
                   if(destLCD->factory_id_line == lcd_id_a2_sm2_line_1)
                   {
-                    pNew_GAMMA_SmartDimming_VALUE_SET_300cd = (unsigned char*) GAMMA_SmartDimming_VALUE_SET_A2SM2_300cd;
+					pNew_GAMMA_SmartDimming_VALUE_SET_300cd = (unsigned char*) GAMMA_SmartDimming_VALUE_SET_A2SM2_300cd;
                     LOG_ADD( " A2i line_1" );
                   }
                   else
@@ -498,7 +502,7 @@ static void update_LCD_SEQ_by_id(struct lcd_setting *destLCD)
                     LOG_ADD( " A2i line_2" );
                   }
                 }
-                break;
+				break;
 			}
 		}
 		else
@@ -979,13 +983,17 @@ static int lcd_off_seq(struct msm_fb_data_type *mfd)
 	DPRINT("%s\n", __func__);
 
 	mutex_lock(&(s6e8aa0_lcd.lock));
+#ifdef CONFIG_FB_MSM_MIPI_DSI_ESD_REFRESH
 	set_lcd_esd_ignore( TRUE );
+#endif 	
 	mipi_dsi_cmds_tx(mfd, &s6e8aa0_tx_buf, s6e8aa0_display_off_cmds,
 			ARRAY_SIZE(s6e8aa0_display_off_cmds));
 	s6e8aa0_lcd.lcd_state.display_on = FALSE;
 	s6e8aa0_lcd.lcd_state.initialized = FALSE;
 	s6e8aa0_lcd.lcd_state.powered_up = FALSE;
+#ifdef CONFIG_FB_MSM_MIPI_DSI_ESD_REFRESH
 	set_lcd_esd_ignore( FALSE );
+#endif 	
 	mutex_unlock(&(s6e8aa0_lcd.lock));
 
 	//gpio_set_value(GPIO_S6E8AA0_RESET, 0);
@@ -999,9 +1007,10 @@ static int lcd_off(struct platform_device *pdev)
 {
 	struct msm_fb_data_type *mfd;
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-    DPRINT("%s : to be early_suspend. return.\n", __func__);
-    return 0;
+//#if def CONFIG_HAS_EARLYSUSPEND
+#if 0 // for recovery ICS (andre.b.kim)
+	DPRINT("%s : to be early_suspend. return.\n", __func__);
+	return 0;
 #endif 
 
     DPRINT("%s +\n", __func__);
@@ -1033,8 +1042,10 @@ static int lcd_shutdown(struct platform_device *pdev)
 	//pMFD = mfd;
 
 	lcd_off_seq(mfd);
+#if defined (CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I757M)
 	msleep(20);
 	gpio_set_value(GPIO_S6E8AA0_RESET, 0);
+#endif
 //	mipi_S6E8AA0_panel_power(FALSE);
 
 	DPRINT("%s -\n", __func__);
@@ -1052,8 +1063,15 @@ static void lcd_gamma_smartDimming_apply( struct msm_fb_data_type *mfd, int srcG
 {
 	int gamma_lux;
 	int i;
+	
+#ifdef MAPPING_TBL_AUTO_BRIGHTNESS
+    gamma_lux = candela_table[srcGamma];
+#else
+    gamma_lux = s6e8aa0_lcd.lcd_brightness_table[srcGamma].lux;
 
-	gamma_lux = s6e8aa0_lcd.lcd_brightness_table[srcGamma].lux;
+#endif
+
+
 	if( gamma_lux > SmartDimming_CANDELA_UPPER_LIMIT ) gamma_lux = SmartDimming_CANDELA_UPPER_LIMIT;
 
 	for( i = SmartDimming_GammaUpdate_Pos; i < sizeof(GAMMA_SmartDimming_COND_SET); i++ ) 	GAMMA_SmartDimming_COND_SET[i] = 0;
@@ -1103,9 +1121,16 @@ static void lcd_gamma_ctl(struct msm_fb_data_type *mfd, struct lcd_setting *lcd)
 		}
 
 		s6e8aa0_lcd.lcd_gamma = gamma_level;
-		LOG_ADD(" gamma_ctl(%d->%d(lcd),%s,%dcd)", gamma_level, s6e8aa0_lcd.lcd_gamma, 
-			s6e8aa0_lcd.lcd_brightness_table[s6e8aa0_lcd.lcd_gamma].strID,
-			s6e8aa0_lcd.lcd_brightness_table[s6e8aa0_lcd.lcd_gamma].lux );
+		
+#ifdef MAPPING_TBL_AUTO_BRIGHTNESS
+			LOG_ADD(" gamma_ctl(%d->%d(lcd),%dcd)", gamma_level, s6e8aa0_lcd.lcd_gamma, 
+				candela_table[s6e8aa0_lcd.lcd_gamma] );
+#else
+			LOG_ADD(" gamma_ctl(%d->%d(lcd),%s,%dcd)", gamma_level, s6e8aa0_lcd.lcd_gamma, 
+				s6e8aa0_lcd.lcd_brightness_table[s6e8aa0_lcd.lcd_gamma].strID,
+				s6e8aa0_lcd.lcd_brightness_table[s6e8aa0_lcd.lcd_gamma].lux );
+		
+#endif
     	}
     	else
     	{
@@ -1152,8 +1177,34 @@ static int get_gamma_value_from_bl(int bl_value )// same as Seine, Celox
 	int gamma_val_x10 =0;
 
 	if(bl_value >= MIN_BL){
+#ifdef MAPPING_TBL_AUTO_BRIGHTNESS	
+
+		if (unlikely(!s6e8aa0_lcd.auto_brightness && bl_value > 250))
+			bl_value = 250;
+  
+        	switch (bl_value) {
+        	case 0 ... 29:
+        		gamma_value = 0; // 30cd
+        		break;
+        	case 30 ... 254:
+                gamma_value = (bl_value - candela_table[0]) / 10;
+       		break;
+        	case 255:
+                gamma_value = CANDELA_TABLE_SIZE - 1;
+    		break;
+				
+        	default:
+              DPRINT(" >>> bl_value:%d , do not gamma_update\n ",bl_value);
+              break;
+        	}
+      
+	        DPRINT(" >>> bl_value:%d,gamma_value: %d\n ",bl_value,gamma_value);
+#else
+
 		gamma_val_x10 = 10 *(MAX_GAMMA_VALUE-1)*bl_value/(MAX_BL-MIN_BL) + (10 - 10*(MAX_GAMMA_VALUE-1)*(MIN_BL)/(MAX_BL-MIN_BL));
 		gamma_value=(gamma_val_x10 +5)/10;
+		
+#endif			
 	}else{
 		gamma_value =0;
 	}
@@ -1324,10 +1375,10 @@ static void lcd_set_acl(struct msm_fb_data_type *mfd, struct lcd_setting *lcd)
 
 
 /////////////////[
-struct class *pwm_backlight_class;
-struct device *pwm_backlight_dev;
+struct class *sysfs_lcd_class;
+struct device *sysfs_panel_dev;
 
-static ssize_t acl_set_show(struct device *dev, struct 
+static ssize_t power_reduce_show(struct device *dev, struct 
 device_attribute *attr, char *buf)
 {
 //	struct ld9040 *lcd = dev_get_drvdata(dev);
@@ -1339,7 +1390,7 @@ device_attribute *attr, char *buf)
 	return strlen(buf);
 }
 
-static ssize_t acl_set_store(struct device *dev, struct 
+static ssize_t power_reduce_store(struct device *dev, struct 
 device_attribute *attr, const char *buf, size_t size)
 {
 	int value;
@@ -1360,15 +1411,14 @@ device_attribute *attr, const char *buf, size_t size)
 				LOG_FINISH();
 			}
 		}
-		return 0;
+		return size;
 	}
 }
 
-static DEVICE_ATTR(acl_set, 0664,
-		acl_set_show, acl_set_store);
+static DEVICE_ATTR(power_reduce, 0664,
+		power_reduce_show, power_reduce_store);
 
-
-static ssize_t lcdtype_show(struct device *dev, struct 
+static ssize_t lcd_type_show(struct device *dev, struct 
 device_attribute *attr, char *buf)
 {
 
@@ -1378,8 +1428,8 @@ device_attribute *attr, char *buf)
 	return strlen(buf);
 }
 
-static DEVICE_ATTR(lcdtype, 0664,
-		lcdtype_show, NULL);
+static DEVICE_ATTR(lcd_type, 0664,
+		lcd_type_show, NULL);
 
 static ssize_t octa_lcdtype_show(struct device *dev, struct 
 device_attribute *attr, char *buf)
@@ -1464,7 +1514,6 @@ device_attribute *attr, char *buf)
 
 static DEVICE_ATTR(octa_lcdtype, 0664,
 		octa_lcdtype_show, NULL);
-
 
 static ssize_t octa_mtp_show(struct device *dev, struct 
 device_attribute *attr, char *buf)
@@ -1642,6 +1691,38 @@ static ssize_t lcd_sysfs_store_lcd_power(struct device *dev,
 static DEVICE_ATTR(lcd_power, 0664,
 		NULL, lcd_sysfs_store_lcd_power);
 
+
+
+#ifdef MAPPING_TBL_AUTO_BRIGHTNESS
+static ssize_t lcd_sysfs_store_auto_brightness(struct device *dev,
+				       struct device_attribute *attr,
+				       const char *buf, size_t len)
+{
+	int value;
+	int rc;
+	
+	dev_info(dev, "lcd_sysfs_store_auto_brightness\n");
+
+	rc = strict_strtoul(buf, (unsigned int)0, (unsigned long *)&value);
+	if (rc < 0)
+		return rc;
+	else {
+		if (s6e8aa0_lcd.auto_brightness != value) {
+			dev_info(dev, "%s - %d, %d\n", __func__, s6e8aa0_lcd.auto_brightness, value);
+			mutex_lock(&(s6e8aa0_lcd.lock));
+			s6e8aa0_lcd.auto_brightness = value;
+			mutex_unlock(&(s6e8aa0_lcd.lock));
+
+		}
+	}
+	return len;
+}
+
+static DEVICE_ATTR(auto_brightness, 0664,
+		NULL, lcd_sysfs_store_auto_brightness);
+
+#endif
+
 /////////////////]
 
 
@@ -1708,6 +1789,9 @@ static int __devinit lcd_probe(struct platform_device *pdev)
 	s6e8aa0_lcd.isSmartDimming_loaded = FALSE;	
 	s6e8aa0_lcd.AID = NOT_AID;
 	s6e8aa0_lcd.cellPulse = 0;
+#ifdef MAPPING_TBL_AUTO_BRIGHTNESS
+	s6e8aa0_lcd.auto_brightness = 0;
+#endif
 	mutex_init( &(s6e8aa0_lcd.lock) );
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -1722,43 +1806,60 @@ static int __devinit lcd_probe(struct platform_device *pdev)
 	DPRINT("msm_fb_add_device -\n");
 
 /////////////[ sysfs
-    pwm_backlight_class = class_create(THIS_MODULE, "pwm-backlight");
-	if (IS_ERR(pwm_backlight_class))
-		pr_err("Failed to create class(pwm_backlight)!\n");
+    sysfs_lcd_class = class_create(THIS_MODULE, "lcd");
+	if (IS_ERR(sysfs_lcd_class))
+		pr_err("Failed to create class(sysfs_lcd_class)!\n");
 
-	pwm_backlight_dev = device_create(pwm_backlight_class,
-		NULL, 0, NULL, "device");
-	if (IS_ERR(pwm_backlight_dev))
-		pr_err("Failed to create device(pwm_backlight_dev)!\n");
+	sysfs_panel_dev = device_create(sysfs_lcd_class,
+		NULL, 0, NULL, "panel");
+	if (IS_ERR(sysfs_panel_dev))
+		pr_err("Failed to create device(sysfs_panel_dev)!\n");
 
-	ret = device_create_file(pwm_backlight_dev, &dev_attr_acl_set);
+	ret = device_create_file(sysfs_panel_dev, &dev_attr_power_reduce);
 	if (ret < 0)
 		dev_err(&(pdev->dev), "failed to add sysfs entries\n");
 
-	ret = device_create_file(pwm_backlight_dev, &dev_attr_lcdtype);  
+	ret = device_create_file(sysfs_panel_dev, &dev_attr_lcd_type);  
 	if (ret < 0)
 		dev_err(&(pdev->dev), "failed to add sysfs entries\n");
 
-	ret = device_create_file(pwm_backlight_dev, &dev_attr_octa_lcdtype);  
+	ret = device_create_file(sysfs_panel_dev, &dev_attr_octa_lcdtype);  
 	if (ret < 0)
 		DPRINT("octa_lcdtype failed to add sysfs entries\n");
 //		dev_err(&(pdev->dev), "failed to add sysfs entries\n");
 
-	ret = device_create_file(pwm_backlight_dev, &dev_attr_octa_mtp);  
+	ret = device_create_file(sysfs_panel_dev, &dev_attr_octa_mtp);  
 	if (ret < 0)
 		DPRINT("octa_mtp failed to add sysfs entries\n");
 
-	ret = device_create_file(pwm_backlight_dev, &dev_attr_octa_adjust_mtp);  
+	ret = device_create_file(sysfs_panel_dev, &dev_attr_octa_adjust_mtp);  
 	if (ret < 0)
 		DPRINT("octa_adjust_mtp failed to add sysfs entries\n");
 
-	ret = device_create_file(pwm_backlight_dev, &dev_attr_lcd_power);  
+	ret = device_create_file(sysfs_panel_dev, &dev_attr_lcd_power);  
 	if (ret < 0)
 		DPRINT("lcd_power failed to add sysfs entries\n");
 //		dev_err(&(pdev->dev), "failed to add sysfs entries\n");
 
 	// mdnie sysfs create
 	init_mdnie_class();
+#ifdef MAPPING_TBL_AUTO_BRIGHTNESS
+#ifdef CONFIG_BACKLIGHT_CLASS_DEVICE
+    if(1){
+      struct backlight_device *pbd = NULL;
+      pbd = backlight_device_register("panel", NULL, NULL,NULL,NULL);
+      if (IS_ERR(pbd)) {
+        DPRINT("Could not register 'panel' backlight device\n");
+      }
+      else
+      {
+        ret = device_create_file(&pbd->dev, &dev_attr_auto_brightness);
+        if (ret < 0)
+          DPRINT("auto_brightness failed to add sysfs entries\n");
+      }
+    }
+#endif
+#endif
 ////////////]	
 	DPRINT("%s-\n", __func__ );
 

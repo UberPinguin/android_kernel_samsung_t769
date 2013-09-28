@@ -37,10 +37,10 @@ struct akm8975_data {
 	struct mutex lock;
 	struct miscdevice akmd_device;
 	struct completion data_ready;
-#if defined(CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I577R) || defined(CONFIG_CAN_MODEL_SGH_I757M)
+#if defined(CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I577R) || defined(CONFIG_CAN_MODEL_SGH_I757M) ||  defined(CONFIG_USA_MODEL_SGH_T769)
 	struct class *akm8975_class;
 	struct device *akm8975_dev;
-#endif	
+#endif		
 	wait_queue_head_t state_wq;
 	int irq;
 	void	(*power_on) (void);
@@ -67,7 +67,7 @@ static s32 akm8975_ecs_set_mode_power_down(struct akm8975_data *akm)
 static int akm8975_ecs_set_mode(struct akm8975_data *akm, char mode)
 {
 	s32 ret;
-
+	
 	switch (mode) {
 	case AK8975_MODE_SNG_MEASURE:
 		ret = i2c_smbus_write_byte_data(akm->this_client,
@@ -184,12 +184,19 @@ static int akm8975_wait_for_data_ready(struct akm8975_data *akm)
 	return err;
 }
 
+#if defined (CONFIG_EUR_MODEL_GT_I9210)
+extern unsigned int get_hw_rev(void);
+#endif
+
 static ssize_t akmd_read(struct file *file, char __user *buf,
 					size_t count, loff_t *pos)
 {
 	struct akm8975_data *akm = container_of(file->private_data,
 			struct akm8975_data, akmd_device);
 	short x = 0, y = 0, z = 0;
+#if defined (CONFIG_EUR_MODEL_GT_I9210)
+	short tmp = 0;
+#endif
 	int ret;
 	u8 data[8];
 
@@ -218,6 +225,14 @@ static ssize_t akmd_read(struct file *file, char __user *buf,
 		x = (data[2] << 8) + data[1];
 		y = (data[4] << 8) + data[3];
 		z = (data[6] << 8) + data[5];
+#if defined (CONFIG_EUR_MODEL_GT_I9210)
+		if (get_hw_rev() >= 6 )
+		{
+			tmp = x;
+			x = y;
+			y = tmp;
+		}
+#endif
 	} else
 		pr_err("%s: invalid raw data(st1 = %d)\n",
 					__func__, data[0] & 0x01);
@@ -226,7 +241,7 @@ done:
 	return sprintf(buf, "%d,%d,%d\n", x, y, z);
 }
 
-#if defined(CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I577R) || defined(CONFIG_CAN_MODEL_SGH_I757M)
+#if defined(CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I577R) || defined(CONFIG_CAN_MODEL_SGH_I757M) || defined(CONFIG_USA_MODEL_SGH_T769)  
 /* sysfs for logging Power line noise */
 static ssize_t akm8975_rawdata_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -271,8 +286,7 @@ done:
 static DEVICE_ATTR(raw_data,0664,akm8975_rawdata_show,NULL);
 #endif
 
-static int akmd_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
-		unsigned long arg)
+static long akmd_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	void __user *argp = (void __user *)arg;
 	struct akm8975_data *akm = container_of(file->private_data,
@@ -284,7 +298,7 @@ static int akmd_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		char mode;
 		u8 data[8];
 	} rwbuf;
-
+	
 	ret = akmd_copy_in(cmd, argp, rwbuf.raw, sizeof(rwbuf));
 	if (ret)
 		return ret;
@@ -410,7 +424,7 @@ static const struct file_operations akmd_fops = {
 	.owner = THIS_MODULE,
 	.open = nonseekable_open,
 	.read = akmd_read,
-	.ioctl = akmd_ioctl,
+	.unlocked_ioctl = akmd_ioctl,
 };
 
 static int akm8975_setup_irq(struct akm8975_data *akm)
@@ -502,9 +516,12 @@ int akm8975_probe(struct i2c_client *client,
 	if(pdata->power_off)
 		akm->power_off = pdata->power_off;
 
-#if defined (CONFIG_KOR_MODEL_SHV_E110S) || defined(CONFIG_KOR_MODEL_SHV_E160S) || defined(CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L)
-#if defined(CONFIG_KOR_MODEL_SHV_E160S) || defined(CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L)
+#if defined (CONFIG_KOR_MODEL_SHV_E110S) || defined(CONFIG_KOR_MODEL_SHV_E160S) || defined(CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L) || defined(CONFIG_EUR_MODEL_GT_I9210) \
+     ||	 defined(CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_USA_MODEL_SGH_T769) || defined (CONFIG_JPN_MODEL_SC_05D)
+#if defined(CONFIG_KOR_MODEL_SHV_E160S) || defined(CONFIG_KOR_MODEL_SHV_E160K) || defined(CONFIG_KOR_MODEL_SHV_E160L) || defined (CONFIG_JPN_MODEL_SC_05D)
 	if (get_hw_rev() >= 0x04 ) {
+#elif  defined(CONFIG_USA_MODEL_SGH_I577)
+	if (get_hw_rev() >= 0x06 ) {	
 #else 
 	if (get_hw_rev() >= 0x08 ) {
 #endif
@@ -518,7 +535,6 @@ int akm8975_probe(struct i2c_client *client,
 	/* For Magnetic sensor POR condition */ 
 	}
 #endif
-
 #if defined (CONFIG_USA_MODEL_SGH_I717)
 	if (get_hw_rev() >= 0x5) {
 		/* For Magnetic sensor POR condition */ 
@@ -531,7 +547,6 @@ int akm8975_probe(struct i2c_client *client,
 		/* For Magnetic sensor POR condition */ 
 	}
 #endif
-
 	if(akm->power_on)
 		akm->power_on();
 
@@ -559,7 +574,7 @@ int akm8975_probe(struct i2c_client *client,
 	if (err)
 		goto exit_akmd_device_register_failed;
 
-#if defined(CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I577R) || defined(CONFIG_CAN_MODEL_SGH_I757M)
+#if defined(CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I577R) || defined(CONFIG_CAN_MODEL_SGH_I757M) || defined(CONFIG_USA_MODEL_SGH_T769)
 	/* creating class/device for test */
 	akm->akm8975_class = class_create(THIS_MODULE, "magnetometer");
 	if(IS_ERR(akm->akm8975_class)) {
@@ -589,7 +604,7 @@ int akm8975_probe(struct i2c_client *client,
 	printk("ak8975 probe success!\n");
 
 	return 0;
-#if defined(CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I577R) || defined(CONFIG_CAN_MODEL_SGH_I757M)
+#if defined(CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I577R) || defined(CONFIG_CAN_MODEL_SGH_I757M) || defined(CONFIG_USA_MODEL_SGH_T769)
 exit_device_create_file_failed:
 	device_destroy(akm->akm8975_class, 0);
 exit_device_create_failed:

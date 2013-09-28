@@ -35,11 +35,12 @@
 #include <linux/i2c/fsa9480.h>
 
 #include <mach/qdsp6v2/audio_dev_ctl.h>
-#include <mach/qdsp6v2/apr_audio.h>
+#include <sound/apr_audio.h>
 #include <mach/mpp.h>
 #include <asm/mach-types.h>
 #include <asm/uaccess.h>
 
+#include <mach/board-msm8660.h>
 #include "snddev_icodec.h"
 #include "snddev_ecodec.h"
 
@@ -730,7 +731,7 @@ int msm_snddev_vpsamp_on_headset(void)
 	yda165_headset_onoff(1);
 	pr_info("%s: power on amp headset\n", __func__);
 #endif
-	fsa9480_manual_switching(SWITCH_PORT_AUDIO);
+
 	return 0;
 }
 
@@ -740,7 +741,7 @@ void msm_snddev_vpsamp_off_headset(void)
 	yda165_headset_onoff(0);
 	pr_info("%s: power off amp headset\n", __func__);
 #endif
-	fsa9480_manual_switching(SWITCH_PORT_AUTO);
+
 	return 0;
 }
 
@@ -5919,14 +5920,14 @@ void __init msm_snddev_init(void)
 			ARRAY_SIZE(snd_devices_common));
 
 	/* Auto detect device base on machine info */
-	if (machine_is_msm8x60_surf() || machine_is_msm8x60_charm_surf()) {
+	if (machine_is_msm8x60_surf() || machine_is_msm8x60_fusion()) {
 		for (i = 0; i < ARRAY_SIZE(snd_devices_surf); i++)
 			snd_devices_surf[i]->id = dev_id++;
 
 		platform_add_devices(snd_devices_surf,
 				ARRAY_SIZE(snd_devices_surf));
 	} else if (machine_is_msm8x60_ffa() ||
-			machine_is_msm8x60_charm_ffa()) {
+			machine_is_msm8x60_fusn_ffa()) {
 #ifdef SEC_AUDIO_DEVICE
 		for (i = 0; i < ARRAY_SIZE(snd_devices_celox); i++)
 			snd_devices_celox[i]->id = dev_id++;

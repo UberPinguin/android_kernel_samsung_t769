@@ -34,7 +34,12 @@
 
 #define MODULE_NAME "sec_jack:"
 #define MAX_ZONE_LIMIT		10
+#if defined (CONFIG_USA_MODEL_SGH_T989)
+#define SEND_KEY_CHECK_TIME_MS	30		/* 30ms */
+#else
 #define SEND_KEY_CHECK_TIME_MS	60		/* 60ms */
+#endif
+
 #define DET_CHECK_TIME_MS	50			/* 200ms -> 50ms */
 #define WAKE_LOCK_TIME		(HZ * 5)	/* 5 sec */
 #define WAKE_LOCK_TIME_IN_SENDKEY (HZ * 1)
@@ -50,118 +55,161 @@
 #elif defined (CONFIG_JPN_MODEL_SC_03D)	
 // this value cover rev03,04
 #define KEY_MEDIA_ADC_MIN 0
-#define KEY_MEDIA_ADC_MAX 130
+#define KEY_MEDIA_ADC_MAX 113
 #elif defined (CONFIG_KOR_MODEL_SHV_E120S) || defined (CONFIG_KOR_MODEL_SHV_E120K)
 #define KEY_MEDIA_ADC_MIN 0
-#define KEY_MEDIA_ADC_MAX 114
+#define KEY_MEDIA_ADC_MAX 117//114
 #elif defined (CONFIG_KOR_MODEL_SHV_E120L)
 #define KEY_MEDIA_ADC_MIN 0
 #define KEY_MEDIA_ADC_MAX 113
-#elif defined (CONFIG_KOR_MODEL_SHV_E160L) //kks_111020
-#define KEY_MEDIA_ADC_MIN 0
-#define KEY_MEDIA_ADC_MAX 149
 #elif defined (CONFIG_KOR_MODEL_SHV_E110S) && defined (CONFIG_PMIC8058_XOADC_CAL)
 #define KEY_MEDIA_ADC_MIN 0
 #define KEY_MEDIA_ADC_MAX 145
+#elif defined (CONFIG_KOR_MODEL_SHV_E110S) && !defined (CONFIG_PMIC8058_XOADC_CAL)
+#define KEY_MEDIA_ADC_MIN 0
+#define KEY_MEDIA_ADC_MAX 117//114
 #elif defined (CONFIG_Q1_KOR_AUDIO)
 #define KEY_MEDIA_ADC_MIN 0
 #define KEY_MEDIA_ADC_MAX 149
-#elif defined (CONFIG_USA_MODEL_SGH_I727) || defined(CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I757M)
+#elif defined (CONFIG_USA_MODEL_SGH_I727)
 #define KEY_MEDIA_ADC_MIN 0
-#define KEY_MEDIA_ADC_MAX 150
+#define KEY_MEDIA_ADC_MAX 134
+#elif defined(CONFIG_USA_MODEL_SGH_I757)
+#define KEY_MEDIA_ADC_MIN 0
+#define KEY_MEDIA_ADC_MAX 122
 #elif defined (CONFIG_USA_MODEL_SGH_I717)
 #define KEY_MEDIA_ADC_MIN 0
-#define KEY_MEDIA_ADC_MAX 121
+#define KEY_MEDIA_ADC_MAX 76
+#elif defined (CONFIG_USA_MODEL_SGH_I957)
+#define KEY_MEDIA_ADC_MIN 0
+#define KEY_MEDIA_ADC_MAX 178
+#elif defined (CONFIG_JPN_MODEL_SC_01D)
+#define KEY_MEDIA_ADC_MIN 0
+#define KEY_MEDIA_ADC_MAX 178
+#elif defined (CONFIG_EUR_MODEL_GT_P7320)
+#define KEY_MEDIA_ADC_MIN 0
+#define KEY_MEDIA_ADC_MAX 178
+#elif defined(CONFIG_TARGET_SERIES_P5LTE) && defined (CONFIG_TARGET_LOCALE_KOR)
+/* P5LTE_KOR_SKT/KT/LGU E140S/K/L */
+#define KEY_MEDIA_ADC_MIN 0
+#define KEY_MEDIA_ADC_MAX 178
 #else	// etc
 #define KEY_MEDIA_ADC_MIN 0
 #define KEY_MEDIA_ADC_MAX 111
 #endif
 
 
-#if defined CONFIG_TARGET_LOCALE_KOR
+#if defined (CONFIG_TARGET_LOCALE_KOR) || defined (CONFIG_TARGET_LOCALE_JPN)
 #if defined (CONFIG_KOR_MODEL_SHV_E120S) || defined (CONFIG_KOR_MODEL_SHV_E120K)
 #define KEY_VOLUMEUP_ADC_MIN 117
 #define KEY_VOLUMEUP_ADC_MAX 311
 #elif defined (CONFIG_KOR_MODEL_SHV_E120L)
 #define KEY_VOLUMEUP_ADC_MIN 117
 #define KEY_VOLUMEUP_ADC_MAX 301
-#elif defined (CONFIG_KOR_MODEL_SHV_E160L) //kks_111020
-#define KEY_VOLUMEUP_ADC_MIN 150
-#define KEY_VOLUMEUP_ADC_MAX 330
 #elif defined (CONFIG_KOR_MODEL_SHV_E110S) && defined (CONFIG_PMIC8058_XOADC_CAL)
 #define KEY_VOLUMEUP_ADC_MIN 150
 #define KEY_VOLUMEUP_ADC_MAX 330
+#elif defined (CONFIG_KOR_MODEL_SHV_E110S) && !defined (CONFIG_PMIC8058_XOADC_CAL)
+#define KEY_VOLUMEUP_ADC_MIN 118//120
+#define KEY_VOLUMEUP_ADC_MAX 306//291
 #elif defined (CONFIG_Q1_KOR_AUDIO)
 #define KEY_VOLUMEUP_ADC_MIN 150
 #define KEY_VOLUMEUP_ADC_MAX 330
+#elif defined(CONFIG_TARGET_SERIES_P5LTE) /* P5LTE_KOR_SKT/KT/LGU E140S/K/L */
+#define KEY_VOLUMEUP_ADC_MIN 179
+#define KEY_VOLUMEUP_ADC_MAX 415
 #else
 #define KEY_VOLUMEUP_ADC_MIN 120
 #define KEY_VOLUMEUP_ADC_MAX 291
 #endif
 #elif defined CONFIG_JPN_MODEL_SC_03D
-#define KEY_VOLUMEUP_ADC_MIN 130
-#define KEY_VOLUMEUP_ADC_MAX 315
+#define KEY_VOLUMEUP_ADC_MIN 118
+#define KEY_VOLUMEUP_ADC_MAX 295
 #elif defined (CONFIG_USA_MODEL_SGH_T769)
 #define KEY_VOLUMEUP_ADC_MIN 106
 #define KEY_VOLUMEUP_ADC_MAX 266
 #elif defined (CONFIG_USA_MODEL_SGH_T989)
 #define KEY_VOLUMEUP_ADC_MIN 149
 #define KEY_VOLUMEUP_ADC_MAX 284
-#elif defined (CONFIG_USA_MODEL_SGH_I727) || defined(CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I757M)
-#define KEY_VOLUMEUP_ADC_MIN 150
-#define KEY_VOLUMEUP_ADC_MAX 336
+#elif defined (CONFIG_USA_MODEL_SGH_I727R) 
+#define KEY_VOLUMEUP_ADC_MIN 134
+#define KEY_VOLUMEUP_ADC_MAX 310
+#elif defined (CONFIG_USA_MODEL_SGH_I727) 
+#define KEY_VOLUMEUP_ADC_MIN 134
+#define KEY_VOLUMEUP_ADC_MAX 310
+#elif defined (CONFIG_USA_MODEL_SGH_I757)
+#define KEY_VOLUMEUP_ADC_MIN 122
+#define KEY_VOLUMEUP_ADC_MAX 310
 #elif defined (CONFIG_USA_MODEL_SGH_I717)
-#define KEY_VOLUMEUP_ADC_MIN 121
-#define KEY_VOLUMEUP_ADC_MAX 251
+#define KEY_VOLUMEUP_ADC_MIN 76
+#define KEY_VOLUMEUP_ADC_MAX 231
+#elif defined (CONFIG_USA_MODEL_SGH_I957)
+#define KEY_VOLUMEUP_ADC_MIN 189
+#define KEY_VOLUMEUP_ADC_MAX 391
+#elif defined (CONFIG_JPN_MODEL_SC_01D)
+#define KEY_VOLUMEUP_ADC_MIN 189
+#define KEY_VOLUMEUP_ADC_MAX 391
+#elif defined (CONFIG_EUR_MODEL_GT_P7320)
+#define KEY_VOLUMEUP_ADC_MIN 189
+#define KEY_VOLUMEUP_ADC_MAX 391
 #else
 #define KEY_VOLUMEUP_ADC_MIN 108
 #define KEY_VOLUMEUP_ADC_MAX 301
 #endif
 
 
-#if defined CONFIG_TARGET_LOCALE_KOR
+#if defined (CONFIG_TARGET_LOCALE_KOR) || defined (CONFIG_TARGET_LOCALE_JPN)
 #if defined (CONFIG_KOR_MODEL_SHV_E120S) || defined (CONFIG_KOR_MODEL_SHV_E120K)
 #define KEY_VOLUMEDOWN_ADC_MIN 315
 #define KEY_VOLUMEDOWN_ADC_MAX 758
 #elif defined (CONFIG_KOR_MODEL_SHV_E120L)
 #define KEY_VOLUMEDOWN_ADC_MIN 310
 #define KEY_VOLUMEDOWN_ADC_MAX 758
-#elif defined (CONFIG_KOR_MODEL_SHV_E160L) //kks_111020
-#define KEY_VOLUMEDOWN_ADC_MIN 350
-#define KEY_VOLUMEDOWN_ADC_MAX 750
 #elif defined (CONFIG_KOR_MODEL_SHV_E110S) && defined (CONFIG_PMIC8058_XOADC_CAL)
 #define KEY_VOLUMEDOWN_ADC_MIN 350
 #define KEY_VOLUMEDOWN_ADC_MAX 700
+#elif defined (CONFIG_KOR_MODEL_SHV_E110S) && !defined (CONFIG_PMIC8058_XOADC_CAL)
+#define KEY_VOLUMEDOWN_ADC_MIN 307//320
+#define KEY_VOLUMEDOWN_ADC_MAX 758
 #elif defined (CONFIG_Q1_KOR_AUDIO)
 #define KEY_VOLUMEDOWN_ADC_MIN 350
 #define KEY_VOLUMEDOWN_ADC_MAX 750
+#elif defined(CONFIG_TARGET_SERIES_P5LTE) /* P5LTE_KOR_SKT/KT/LGU E140S/K/L */
+#define KEY_VOLUMEDOWN_ADC_MIN 416
+#define KEY_VOLUMEDOWN_ADC_MAX 1000
 #else
 #define KEY_VOLUMEDOWN_ADC_MIN 320
 #define KEY_VOLUMEDOWN_ADC_MAX 758
 #endif
 #elif defined CONFIG_JPN_MODEL_SC_03D
-#define KEY_VOLUMEDOWN_ADC_MIN 330
-#define KEY_VOLUMEDOWN_ADC_MAX 670
+#define KEY_VOLUMEDOWN_ADC_MIN 315
+#define KEY_VOLUMEDOWN_ADC_MAX 650
 #elif defined (CONFIG_USA_MODEL_SGH_T769)
 #define KEY_VOLUMEDOWN_ADC_MIN 266
 #define KEY_VOLUMEDOWN_ADC_MAX 681
 #elif defined (CONFIG_USA_MODEL_SGH_T989)
 #define KEY_VOLUMEDOWN_ADC_MIN 284
 #define KEY_VOLUMEDOWN_ADC_MAX 681
-#elif defined (CONFIG_USA_MODEL_SGH_I727) || defined(CONFIG_USA_MODEL_SGH_I757) || defined(CONFIG_CAN_MODEL_SGH_I757M)
-#define KEY_VOLUMEDOWN_ADC_MIN 336
+#elif defined (CONFIG_USA_MODEL_SGH_I727) || defined(CONFIG_USA_MODEL_SGH_I757)
+#define KEY_VOLUMEDOWN_ADC_MIN 310
 #define KEY_VOLUMEDOWN_ADC_MAX 681
 #elif defined (CONFIG_USA_MODEL_SGH_I717)
-#define KEY_VOLUMEDOWN_ADC_MIN 251
+#define KEY_VOLUMEDOWN_ADC_MIN 231
 #define KEY_VOLUMEDOWN_ADC_MAX 681
+#elif defined (CONFIG_USA_MODEL_SGH_I957)
+#define KEY_VOLUMEDOWN_ADC_MIN 438
+#define KEY_VOLUMEDOWN_ADC_MAX 832
+#elif defined (CONFIG_JPN_MODEL_SC_01D)
+#define KEY_VOLUMEDOWN_ADC_MIN 438
+#define KEY_VOLUMEDOWN_ADC_MAX 832
 #else
 #define KEY_VOLUMEDOWN_ADC_MIN 301
 #define KEY_VOLUMEDOWN_ADC_MAX 660
 #endif
 
-
-
-
+#if defined(CONFIG_USA_MODEL_SGH_I717) || defined(CONFIG_USA_MODEL_SGH_I727) || defined(CONFIG_USA_MODEL_SGH_T989) || defined(CONFIG_USA_MODEL_SGH_I577) || defined(CONFIG_JPN_MODEL_SC_05D)
+#define JACK_WATERPROOF
+#endif
 
 #ifdef SUPPORT_PBA
 struct class *jack_class;
@@ -170,6 +218,12 @@ EXPORT_SYMBOL(jack_class);
 /* Sysfs device, this is used for communication with Cal App. */
 static struct device *jack_selector_fs;     
 EXPORT_SYMBOL(jack_selector_fs);
+#if defined(JACK_WATERPROOF)
+static struct device *jack_reselector_fs;     
+EXPORT_SYMBOL(jack_reselector_fs);
+
+bool recheck_jack = false;
+#endif
 #endif
 
 extern int get_hw_rev(void);
@@ -210,12 +264,42 @@ static void set_send_key_state(struct sec_jack_info *hi, int state)
 	struct sec_jack_platform_data *pdata = hi->pdata;
 	int adc;
 
+	// using local variables instead of macros, because for NTT, different values are needed
+	// depending on different hardware revisions i.e. After Rev 11, i.e 0.3A.
+	
+	int key_media_adc_min = KEY_MEDIA_ADC_MIN;
+	int key_media_adc_max = KEY_MEDIA_ADC_MAX;
+	int key_volumeup_adc_min = KEY_VOLUMEUP_ADC_MIN;
+	int key_volumeup_adc_max = KEY_VOLUMEUP_ADC_MAX;
+	int key_volumedown_adc_min = KEY_VOLUMEDOWN_ADC_MIN;
+	int key_volumedown_adc_max = KEY_VOLUMEDOWN_ADC_MAX;
+
+#if defined (CONFIG_JPN_MODEL_SC_03D)
+	if (get_hw_rev()>=0x0B)	// After Rev 11, i.e 0.3A
+	{
+		key_media_adc_min = 0;
+		key_media_adc_max = 105;
+		key_volumeup_adc_min = 110;
+		key_volumeup_adc_max = 295;
+		key_volumedown_adc_min = 305;
+		key_volumedown_adc_max = 660;
+	}
+#endif
+
 	adc = pdata->get_adc_value();
     	pr_info("%s adc=%d, state=%d\n", __func__, adc, state);
 
 	/*check this adc value from H/W team*/
 	if(state != 0) {
-		if((adc >= KEY_MEDIA_ADC_MIN && adc < KEY_MEDIA_ADC_MAX)) 
+#if 0 //defined(CONFIG_KOR_MODEL_SHV_E160L)	// add EAR_VOL_KEY 
+		if(((get_hw_rev() >= 0x08) 
+			&& (adc == KEY_MEDIA_ADC_MIN) ) 
+				|| ((get_hw_rev() < 0x08) 
+					&& (adc >= KEY_MEDIA_ADC_MIN 
+					&& adc < KEY_MEDIA_ADC_MAX))) 
+#else	
+		if((adc >= key_media_adc_min && adc < key_media_adc_max)) 
+#endif
 		{
 			hi->keypress_code = KEY_MEDIA;
 			pr_info(MODULE_NAME "Key PRESSED is:%d  ADC VALUE = %d \n", hi->keypress_code,adc);
@@ -225,7 +309,7 @@ static void set_send_key_state(struct sec_jack_info *hi, int state)
 			hi->send_key_pressed = state;
 		}
 
-		if( adc >= KEY_VOLUMEUP_ADC_MIN && adc < KEY_VOLUMEUP_ADC_MAX ) {
+		if( adc >= key_volumeup_adc_min && adc < key_volumeup_adc_max ) {
 			hi->keypress_code = KEY_VOLUMEUP;
 			pr_info(MODULE_NAME "Key PRESSED is:%d  ADC VALUE = %d \n", hi->keypress_code,adc);
 			input_report_key(hi->input, KEY_VOLUMEUP, state);
@@ -234,7 +318,7 @@ static void set_send_key_state(struct sec_jack_info *hi, int state)
 			hi->send_key_pressed = state;
 		}
 
-		if(adc >= KEY_VOLUMEDOWN_ADC_MIN && adc < KEY_VOLUMEDOWN_ADC_MAX) {
+		if(adc >= key_volumedown_adc_min && adc < key_volumedown_adc_max) {
 			hi->keypress_code = KEY_VOLUMEDOWN;
 			pr_info(MODULE_NAME "Key PRESSED is:%d  ADC VALUE = %d \n", hi->keypress_code,adc);
 			input_report_key(hi->input, KEY_VOLUMEDOWN, state);
@@ -259,7 +343,8 @@ static void sec_jack_set_type(struct sec_jack_info *hi, int jack_type)
 	 */
 	if (jack_type == hi->cur_jack_type)
 	{
-		pr_debug(MODULE_NAME "%s return, same type reason\n", __func__);
+		pr_info(MODULE_NAME "%s return, same type reason\n", __func__);
+		pr_info(MODULE_NAME "%s return, jack_type = %d, hi->cur_jack_type = %d\n", __func__, jack_type, hi->cur_jack_type);
 		return;
 	}
 
@@ -328,24 +413,55 @@ static void determine_jack_type(struct sec_jack_info *hi)
 		 * the range) before we return the type for that range.
 		 */
 		for (i = 0; i < size; i++) {
+			// using local variable for delay, because for CELOX_NTT, different values are needed
+			// depending on different hardware revisions.
+			int zone_i_delay = zones[i].delay_ms;
+#if defined (CONFIG_JPN_MODEL_SC_03D)
+			if (get_hw_rev()>=0x0B)	// After Rev 11, i.e 0.3A
+			{
+				zone_i_delay = 25;	// 25 ms for all zones, After Rev 11, i.e 0.3A
+			}
+#endif
 			if (adc <= zones[i].adc_high) {
 				if (++count[i] > zones[i].check_count) {
 					//pr_debug(MODULE_NAME "determine_jack_type %d, %d, %d\n", zones[i].adc_high, count[i], zones[i].check_count);
+#if defined(JACK_WATERPROOF)
+					if(recheck_jack == true && i == 3) {
+						pr_info(MODULE_NAME "something worng connection!\n");
+						handle_jack_not_inserted(hi);
+
+						recheck_jack = false;
+						return;
+					}
+						
+					sec_jack_set_type(hi, zones[i].jack_type);
+#else
 					sec_jack_set_type(hi,
 							zones[i].jack_type);
+#endif
 					//mic_bias remains enabled in race condition.
 					if (hi->cur_jack_type != SEC_HEADSET_4POLE) {
 						hi->pdata->set_micbias_state(false);
 						pr_info(MODULE_NAME "forced mic_bias disable\n");
 					}					
+#if defined(JACK_WATERPROOF)
+
+					recheck_jack = false;
+#else
+#endif
 					return;
 				}
-				msleep(zones[i].delay_ms);
+				msleep(zone_i_delay);
 				break;
 			}
 		}
 	}
 	/* jack removed before detection complete */
+#if defined(JACK_WATERPROOF)
+
+					recheck_jack = false;
+#else
+#endif
 	handle_jack_not_inserted(hi);
 }
 
@@ -375,6 +491,32 @@ static ssize_t select_jack_store(struct device *dev, struct device_attribute *at
 	return size;
 }
 static DEVICE_ATTR(select_jack, S_IRUGO | S_IWUSR | S_IWGRP, select_jack_show, select_jack_store);
+#if defined(JACK_WATERPROOF)
+static ssize_t reselect_jack_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	pr_info("%s : operate nothing\n", __func__);
+
+	return 0;
+}    
+
+static ssize_t reselect_jack_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct sec_jack_info *hi = dev_get_drvdata(dev);
+	struct sec_jack_platform_data *pdata = hi->pdata;
+	int value = 0;
+
+	sscanf(buf, "%d", &value);
+	pr_err("%s: User  selection : 0x%x\n", __func__, value);
+
+	if(value == 1) {
+		recheck_jack = true;
+		determine_jack_type(hi);
+	}
+	
+	return size;
+}
+static DEVICE_ATTR(reselect_jack, S_IRUGO | S_IWUSR | S_IWGRP, reselect_jack_show, reselect_jack_store);
+#endif
 #endif
 
 static irqreturn_t sec_jack_send_key_irq_handler(int irq, void *handle)
@@ -384,7 +526,7 @@ static irqreturn_t sec_jack_send_key_irq_handler(int irq, void *handle)
 	pr_info(MODULE_NAME "%s : irq is %d.\n", __func__, irq);
 
 	if(hi->is_ready)
-	{		
+	{
 		//disable_irq_nosync(hi->pdata->send_int);
 		schedule_work(&hi->sendkey_work);
 	}	
@@ -399,7 +541,9 @@ static void sec_jack_send_key_work_func(struct work_struct *work)
 	struct sec_jack_platform_data *pdata = hi->pdata;
 	int time_left_ms = SEND_KEY_CHECK_TIME_MS;
 	int send_key_state=0;
+#if defined (CONFIG_KOR_MODEL_SHV_E160S) || defined(CONFIG_KOR_MODEL_SHV_E160K) || defined (CONFIG_KOR_MODEL_SHV_E160L) || defined (CONFIG_USA_MODEL_SGH_I717) || defined (CONFIG_JPN_MODEL_SC_05D)
 	int adc = 0;
+#endif
 	
 	wake_lock_timeout(&hi->det_wake_lock, WAKE_LOCK_TIME_IN_SENDKEY);
 
@@ -422,7 +566,7 @@ static void sec_jack_send_key_work_func(struct work_struct *work)
 		msleep(10);
 		time_left_ms -= 10;
 		
-#if defined (CONFIG_KOR_MODEL_SHV_E160S) || defined(CONFIG_KOR_MODEL_SHV_E160K) || defined (CONFIG_KOR_MODEL_SHV_E160L) || defined (CONFIG_USA_MODEL_SGH_I717)
+#if defined (CONFIG_KOR_MODEL_SHV_E160S) || defined(CONFIG_KOR_MODEL_SHV_E160K) || defined (CONFIG_KOR_MODEL_SHV_E160L) || defined (CONFIG_USA_MODEL_SGH_I717) || defined (CONFIG_JPN_MODEL_SC_05D)
 		if(time_left_ms <= 20) {
 			adc = pdata->get_adc_value();
 			if((adc >= KEY_MEDIA_ADC_MIN && adc < KEY_MEDIA_ADC_MAX)) {
@@ -597,6 +741,14 @@ static int sec_jack_probe(struct platform_device *pdev)
 
 	if (device_create_file(jack_selector_fs, &dev_attr_select_jack) < 0)
 		pr_err("%s : Failed to create device file(%s)!\n", __func__, dev_attr_select_jack.attr.name);
+#if defined(JACK_WATERPROOF)
+	jack_reselector_fs = device_create(jack_class, NULL, 0, hi, "jack_reselector");
+	if (IS_ERR(jack_reselector_fs))
+		pr_err("%s : Failed to create device(sec_jack)!= %ld\n", __func__, IS_ERR(jack_reselector_fs));
+
+	if (device_create_file(jack_reselector_fs, &dev_attr_reselect_jack) < 0)
+		pr_err("%s : Failed to create device file(%s)!\n", __func__, dev_attr_reselect_jack.attr.name);	
+#endif
 #endif
 
 	INIT_WORK(&hi->det_work, sec_jack_det_work_func);
@@ -637,11 +789,22 @@ static int sec_jack_probe(struct platform_device *pdev)
 	disable_irq(pdata->send_int);
 	dev_set_drvdata(&pdev->dev, hi);
 
+#ifdef CONFIG_TARGET_SERIES_P4LTE
+	pdata->init();
+#endif
+
 	/* call irq_thread forcely because of missing interrupt when booting. 
 	 * 2000ms delay is enough to waiting for adc driver registration.
 	 */
 	INIT_DELAYED_WORK(&hi->powerup_work, sec_jack_powerup_work_func);
 	schedule_delayed_work(&hi->powerup_work, msecs_to_jiffies(2000));
+
+#ifdef CONFIG_TARGET_SERIES_P4LTE
+	if(pdata->get_det_jack_state())
+	{
+		sec_jack_det_irq_handler(pdata->det_int, hi);
+	}
+#endif
 
 	return 0;
 

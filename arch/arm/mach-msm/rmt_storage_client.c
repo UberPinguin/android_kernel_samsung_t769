@@ -9,11 +9,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
- * 02110-1301, USA.
- *
  */
 
 #include <linux/miscdevice.h>
@@ -1269,22 +1264,19 @@ static int rmt_storage_get_ramfs(struct rmt_storage_srv *srv)
 	int index, ret;
 
 	if (srv->prog != MSM_RMT_STORAGE_APIPROG)
-	{
-		pr_info("%s: srv->prog != MSM_RMT_STORAGE_APIPROG\n", __func__);
 		return 0;
-	}
 
 	ramfs_table = smem_alloc(SMEM_SEFS_INFO,
 			sizeof(struct shared_ramfs_table));
 
 	if (!ramfs_table) {
-		pr_info("%s: No RAMFS table in SMEM\n", __func__);
+		pr_err("%s: No RAMFS table in SMEM\n", __func__);
 		return -ENOENT;
 	}
 
 	if ((ramfs_table->magic_id != (u32) RAMFS_INFO_MAGICNUMBER) ||
 	    (ramfs_table->version != (u32) RAMFS_INFO_VERSION)) {
-		pr_info("%s: Magic / Version mismatch:, "
+		pr_err("%s: Magic / Version mismatch:, "
 		       "magic_id=%#x, format_version=%#x\n", __func__,
 		       ramfs_table->magic_id, ramfs_table->version);
 		return -ENOENT;
@@ -1294,10 +1286,7 @@ static int rmt_storage_get_ramfs(struct rmt_storage_srv *srv)
 		ramfs_entry = &ramfs_table->ramfs_entry[index];
 		if (!ramfs_entry->client_id ||
 		    ramfs_entry->client_id == (u32) RAMFS_DEFAULT)
-		{
-			pr_info("%s: ramfs_entry->client_id : %d", __func__, ramfs_entry->client_id);
 			break;
-		}
 
 		pr_info("%s: RAMFS entry: addr = 0x%08x, size = 0x%08x\n",
 			__func__, ramfs_entry->base_addr, ramfs_entry->size);
@@ -1324,7 +1313,6 @@ show_force_sync(struct device *dev, struct device_attribute *attr,
 	struct platform_device *pdev;
 	struct rpcsvr_platform_device *rpc_pdev;
 	struct rmt_storage_srv *srv;
-	int rc = 0;
 
 	pdev = container_of(dev, struct platform_device, dev);
 	rpc_pdev = container_of(pdev, struct rpcsvr_platform_device, base);
@@ -1335,14 +1323,7 @@ show_force_sync(struct device *dev, struct device_attribute *attr,
 		return -EINVAL;
 	}
 
-	rc = rmt_storage_force_sync(srv->rpc_client);
-	if (rc)
-	{
-		printk("%s Force Sync Completed Sucesfully : %d\n",__func__,rc);
-		return rc;
-	}
-
-	return rc;
+	return rmt_storage_force_sync(srv->rpc_client);
 }
 
 /* Returns -EINVAL for invalid sync token and an error value for any failure
@@ -1544,12 +1525,10 @@ static int rmt_storage_probe(struct platform_device *pdev)
 	struct rmt_storage_srv *srv;
 	int ret;
 
-	pr_info("%s : enter\n", __func__);
-
 	dev = container_of(pdev, struct rpcsvr_platform_device, base);
 	srv = rmt_storage_get_srv(dev->prog);
 	if (!srv) {
-		pr_info("%s: Invalid prog = %#x\n", __func__, dev->prog);
+		pr_err("%s: Invalid prog = %#x\n", __func__, dev->prog);
 		return -ENXIO;
 	}
 
@@ -1573,10 +1552,7 @@ static int rmt_storage_probe(struct platform_device *pdev)
 		handle_restart_teardown,
 		handle_restart_setup);
 	if (ret)
-        {
-		pr_info("%s: Error msm_rpc_register_reset_callbacks %d\n", __func__, ret);
 		goto unregister_client;
-        }
 
 	pr_info("%s: Remote storage RPC client (0x%x)initialized\n",
 		__func__, dev->prog);
@@ -1717,9 +1693,6 @@ static int __init rmt_storage_init(void)
 		goto unreg_mdm_rpc;
 	}
 
-	rmc->workq = create_singlethread_workqueue("rmt_storage");
-	if (!rmc->workq)
-		return -ENOMEM;
 #ifdef CONFIG_MSM_SDIO_SMEM
 	mdm_local_buf = kzalloc(MDM_LOCAL_BUF_SZ, GFP_KERNEL);
 	if (!mdm_local_buf) {
@@ -1741,6 +1714,12 @@ static int __init rmt_storage_init(void)
 		 mdm_local_buf, __pa(mdm_local_buf), MDM_LOCAL_BUF_SZ);
 #endif
 
+	rmc->workq = create_singlethread_workqueue("rmt_storage");
+	if (!rmc->workq)
+	{   
+		ret = -ENOMEM;
+		goto unreg_mdm_rpc; 
+	}
 #ifdef CONFIG_MSM_RMT_STORAGE_CLIENT_STATS
 	stats_dentry = debugfs_create_file("rmt_storage_stats", 0444, 0,
 					NULL, &debug_ops);

@@ -67,7 +67,7 @@ struct eth_dev {
 
 	spinlock_t		req_lock;	/* guard {rx,tx}_reqs */
 	struct list_head	tx_reqs, rx_reqs;
-	atomic_t		tx_qlen;
+	unsigned		tx_qlen;
 
 	struct sk_buff_head	rx_frames;
 
@@ -239,6 +239,9 @@ rx_submit(struct eth_dev *dev, struct usb_request *req, gfp_t gfp_flags)
 	size += dev->port_usb->header_len;
 	size += out->maxpacket - 1;
 	size -= size % out->maxpacket;
+
+	if (dev->port_usb->is_fixed)
+		size = max_t(size_t, size, dev->port_usb->fixed_out_len);
 
 	skb = alloc_skb(size + NET_IP_ALIGN, gfp_flags);
 	if (skb == NULL) {
@@ -481,7 +484,6 @@ static void tx_complete(struct usb_ep *ep, struct usb_request *req)
 	spin_unlock(&dev->req_lock);
 	dev_kfree_skb_any(skb);
 
-	atomic_dec(&dev->tx_qlen);
 	if (netif_carrier_ok(dev->net))
 		netif_wake_queue(dev->net);
 }
@@ -578,21 +580,36 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 	req->context = skb;
 	req->complete = tx_complete;
 
+	/* NCM requires no zlp if transfer is dwNtbInMaxSize */
+	if (dev->port_usb->is_fixed &&
+	    length == dev->port_usb->fixed_in_len &&
+	    (length % in->maxpacket) == 0)
+		req->zero = 0;
+	else
+		req->zero = 1;
+
 	/* use zlp framing on tx for strict CDC-Ether conformance,
 	 * though any robust network rx path ignores extra padding.
 	 * and some hardware doesn't like to write zlps.
 	 */
-	req->zero = 1;
-	if (!dev->zlp && (length % in->maxpacket) == 0)
+	if (req->zero && !dev->zlp && (length % in->maxpacket) == 0)
 		length++;
 
 	req->length = length;
 
 	/* throttle highspeed IRQ rate back slightly */
-	if (gadget_is_dualspeed(dev->gadget))
-		req->no_interrupt = (dev->gadget->speed == USB_SPEED_HIGH)
-			? ((atomic_read(&dev->tx_qlen) % qmult) != 0)
-			: 0;
+	if (gadget_is_dualspeed(dev->gadget) &&
+			 (dev->gadget->speed == USB_SPEED_HIGH)) {
+		dev->tx_qlen++;
+		if (dev->tx_qlen == qmult) {
+			req->no_interrupt = 0;
+			dev->tx_qlen = 0;
+		} else {
+			req->no_interrupt = 1;
+		}
+	} else {
+		req->no_interrupt = 0;
+	}
 
 	retval = usb_ep_queue(in, req, GFP_ATOMIC);
 	switch (retval) {
@@ -601,7 +618,6 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 		break;
 	case 0:
 		net->trans_start = jiffies;
-		atomic_inc(&dev->tx_qlen);
 	}
 
 	if (retval) {
@@ -627,7 +643,7 @@ static void eth_start(struct eth_dev *dev, gfp_t gfp_flags)
 	rx_fill(dev, gfp_flags);
 
 	/* and open the tx floodgates */
-	atomic_set(&dev->tx_qlen, 0);
+	dev->tx_qlen = 0;
 	netif_wake_queue(dev->net);
 }
 
@@ -704,17 +720,6 @@ static char *host_addr;
 module_param(host_addr, charp, S_IRUGO);
 MODULE_PARM_DESC(host_addr, "Host Ethernet Address");
 
-
-static u8 __init nibble(unsigned char c)
-{
-	if (isdigit(c))
-		return c - '0';
-	c = toupper(c);
-	if (isxdigit(c))
-		return 10 + c - 'A';
-	return 0;
-}
-
 static int get_ether_addr(const char *str, u8 *dev_addr)
 {
 	if (str) {
@@ -725,8 +730,8 @@ static int get_ether_addr(const char *str, u8 *dev_addr)
 
 			if ((*str == '.') || (*str == ':'))
 				str++;
-			num = nibble(*str++) << 4;
-			num |= (nibble(*str++));
+			num = hex_to_bin(*str++) << 4;
+			num |= hex_to_bin(*str++);
 			dev_addr [i] = num;
 		}
 		if (is_valid_ether_addr(dev_addr))
@@ -766,6 +771,26 @@ static struct device_type gadget_type = {
  */
 int gether_setup(struct usb_gadget *g, u8 ethaddr[ETH_ALEN])
 {
+	return gether_setup_name(g, ethaddr, "usb");
+}
+
+/**
+ * gether_setup_name - initialize one ethernet-over-usb link
+ * @g: gadget to associated with these links
+ * @ethaddr: NULL, or a buffer in which the ethernet address of the
+ *	host side of the link is recorded
+ * @netname: name for network device (for example, "usb")
+ * Context: may sleep
+ *
+ * This sets up the single network link that may be exported by a
+ * gadget driver using this framework.  The link layer addresses are
+ * set up using module parameters.
+ *
+ * Returns negative errno, or zero on success
+ */
+int gether_setup_name(struct usb_gadget *g, u8 ethaddr[ETH_ALEN],
+		const char *netname)
+{
 	struct eth_dev		*dev;
 	struct net_device	*net;
 	int			status;
@@ -776,10 +801,6 @@ int gether_setup(struct usb_gadget *g, u8 ethaddr[ETH_ALEN])
 	net = alloc_etherdev(sizeof *dev);
 	if (!net)
 		return -ENOMEM;
-
-#if defined (CONFIG_USA_MODEL_SGH_I727)
-	net->mtu = 1410;
-#endif
 
 	dev = netdev_priv(net);
 	spin_lock_init(&dev->lock);
@@ -792,17 +813,23 @@ int gether_setup(struct usb_gadget *g, u8 ethaddr[ETH_ALEN])
 
 	/* network device setup */
 	dev->net = net;
-	strcpy(net->name, "usb%d");
+	snprintf(net->name, sizeof(net->name), "%s%%d", netname);
 
 	if (get_ether_addr(dev_addr, net->dev_addr))
 		dev_warn(&g->dev,
 			"using random %s ethernet address\n", "self");
+
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	memcpy(dev->host_mac, ethaddr, ETH_ALEN);
+	printk(KERN_DEBUG "usb: set unique host mac\n");
+#else
 	if (get_ether_addr(host_addr, dev->host_mac))
 		dev_warn(&g->dev,
 			"using random %s ethernet address\n", "host");
 
 	if (ethaddr)
 		memcpy(ethaddr, dev->host_mac, ETH_ALEN);
+#endif
 
 	net->netdev_ops = &eth_netdev_ops;
 
@@ -812,7 +839,6 @@ int gether_setup(struct usb_gadget *g, u8 ethaddr[ETH_ALEN])
 	 *  - iff DATA transfer is active, carrier is "on"
 	 *  - tx queueing enabled if open *and* carrier is "on"
 	 */
-	netif_stop_queue(net);
 	netif_carrier_off(net);
 
 	dev->gadget = g;
@@ -845,10 +871,8 @@ void gether_cleanup(void)
 		return;
 
 	unregister_netdev(the_dev->net);
+	flush_work_sync(&the_dev->work);
 	free_netdev(the_dev->net);
-
-	/* assuming we used keventd, it must quiesce too */
-	flush_scheduled_work();
 
 	the_dev = NULL;
 }
