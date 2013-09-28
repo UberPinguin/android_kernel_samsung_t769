@@ -48,6 +48,7 @@ static unsigned int input_abs_bypass_init_data[] __initdata = {
 	ABS_MT_BLOB_ID,
 	ABS_MT_TRACKING_ID,
 	ABS_MT_PRESSURE,
+
 	0
 };
 static unsigned long input_abs_bypass[BITS_TO_LONGS(ABS_CNT)];
@@ -233,6 +234,24 @@ static void input_handle_event(struct input_dev *dev,
 		break;
 
 	case EV_ABS:
+#ifdef CONFIG_SHAPE_TOUCH
+		if (is_event_supported(code, dev->absbit, ABS_MAX)) {
+			if ( code < ABS_MT_TOUCH_MAJOR&& code > ABS_MT_COMPONENT) {
+
+				value = input_defuzz_abs_event(value,
+						dev->abs[code], dev->absfuzz[code]);
+
+				if (dev->abs[code] != value) {
+					dev->abs[code] = value;
+					disposition = INPUT_PASS_TO_HANDLERS;
+				}
+			}
+			else {
+				dev->abs[code] = value;
+				disposition = INPUT_PASS_TO_HANDLERS;
+			}
+		}
+#else
 		if (is_event_supported(code, dev->absbit, ABS_MAX)) {
 
 			if (test_bit(code, input_abs_bypass)) {
@@ -248,6 +267,7 @@ static void input_handle_event(struct input_dev *dev,
 				disposition = INPUT_PASS_TO_HANDLERS;
 			}
 		}
+#endif
 		break;
 
 	case EV_REL:
@@ -328,7 +348,6 @@ void input_event(struct input_dev *dev,
 		 unsigned int type, unsigned int code, int value)
 {
 	unsigned long flags;
-
 	if (is_event_supported(type, dev->evbit, EV_MAX)) {
 
 		spin_lock_irqsave(&dev->event_lock, flags);

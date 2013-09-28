@@ -33,7 +33,7 @@ unsigned long __read_mostly sysctl_hung_task_check_count = PID_MAX_LIMIT;
 /*
  * Zero means infinite timeout - no checking done:
  */
-unsigned long __read_mostly sysctl_hung_task_timeout_secs = 120;
+unsigned long __read_mostly sysctl_hung_task_timeout_secs = 60;
 
 unsigned long __read_mostly sysctl_hung_task_warnings = 10;
 
@@ -78,15 +78,21 @@ static void check_hung_task(struct task_struct *t, unsigned long timeout)
 	 * its state to TASK_UNINTERRUPTIBLE without having ever been
 	 * switched out once, it musn't be checked.
 	 */
-	if (unlikely(t->flags & PF_FROZEN || !switch_count))
+	if (unlikely(t->flags & PF_FROZEN || !switch_count)) {
+		pr_err("%s - 1\n",__func__);
 		return;
+	}
 
 	if (switch_count != t->last_switch_count) {
+		pr_err("%s -2\n",__func__);
 		t->last_switch_count = switch_count;
 		return;
 	}
-	if (!sysctl_hung_task_warnings)
+	if (!sysctl_hung_task_warnings) {
+		pr_err("%s - 3\n",__func__);
 		return;
+	}
+
 	sysctl_hung_task_warnings--;
 
 	/*
@@ -134,6 +140,8 @@ static void check_hung_uninterruptible_tasks(unsigned long timeout)
 	int max_count = sysctl_hung_task_check_count;
 	int batch_count = HUNG_TASK_BATCHING;
 	struct task_struct *g, *t;
+
+	pr_err("%s/n",__func__);
 
 	/*
 	 * If the system crashed already then all bets are off,

@@ -1573,6 +1573,15 @@ EXPORT_SYMBOL(generic_make_request);
  * interfaces; @bio must be presetup and ready for I/O.
  *
  */
+
+#ifdef CONFIG_USA_MODEL_SGH_I717
+//#define CONFIG_DETECT_ZERO_WRITE
+#endif
+
+#ifdef CONFIG_DETECT_ZERO_WRITE
+extern int check_in_ext4_metarange(sector_t sec_num, unsigned int sec_cnt, int abs_addressing);
+#endif
+
 void submit_bio(int rw, struct bio *bio)
 {
 	int count = bio_sectors(bio);
@@ -1591,13 +1600,19 @@ void submit_bio(int rw, struct bio *bio)
 			count_vm_events(PGPGIN, count);
 		}
 
-		if (unlikely(block_dump)) {
+#ifndef CONFIG_DETECT_ZERO_WRITE
+		if (unlikely(block_dump))
+#else
+		if ((rw & WRITE) && check_in_ext4_metarange(bio->bi_sector, count, 0))
+#endif
+		{
 			char b[BDEVNAME_SIZE];
-			printk(KERN_DEBUG "%s(%d): %s block %Lu on %s\n",
+			printk(KERN_DEBUG "%s(%d): %s block %Lu on %s (%u sectors)\n",
 			current->comm, task_pid_nr(current),
 				(rw & WRITE) ? "WRITE" : "READ",
 				(unsigned long long)bio->bi_sector,
-				bdevname(bio->bi_bdev, b));
+				bdevname(bio->bi_bdev, b),
+				count);
 		}
 	}
 

@@ -777,6 +777,10 @@ int gether_setup(struct usb_gadget *g, u8 ethaddr[ETH_ALEN])
 	if (!net)
 		return -ENOMEM;
 
+#if defined (CONFIG_USA_MODEL_SGH_I727)
+	net->mtu = 1410;
+#endif
+
 	dev = netdev_priv(net);
 	spin_lock_init(&dev->lock);
 	spin_lock_init(&dev->req_lock);
@@ -947,7 +951,6 @@ void gether_disconnect(struct gether *link)
 	struct eth_dev		*dev = link->ioport;
 	struct usb_request	*req;
 
-	WARN_ON(!dev);
 	if (!dev)
 		return;
 

@@ -345,10 +345,14 @@ EXPORT_SYMBOL_GPL(kernel_halt);
  */
 void kernel_power_off(void)
 {
+	pr_info("%s:%d\n", __func__, __LINE__);
 	kernel_shutdown_prepare(SYSTEM_POWER_OFF);
+	pr_info("%s:%d\n", __func__, __LINE__);
 	if (pm_power_off_prepare)
 		pm_power_off_prepare();
+	pr_info("%s:%d\n", __func__, __LINE__);
 	disable_nonboot_cpus();
+	pr_info("%s:%d\n", __func__, __LINE__);
 	sysdev_shutdown();
 	printk(KERN_EMERG "Power down.\n");
 	machine_power_off();
@@ -390,6 +394,9 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 		cmd = LINUX_REBOOT_CMD_HALT;
 
 	mutex_lock(&reboot_mutex);
+
+	printk(KERN_EMERG "[%s]: cmd=0x%x\n", __func__, cmd);
+
 	switch (cmd) {
 	case LINUX_REBOOT_CMD_RESTART:
 		kernel_restart(NULL);

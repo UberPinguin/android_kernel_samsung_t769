@@ -94,6 +94,9 @@ static void __uart_start(struct tty_struct *tty)
 	struct uart_state *state = tty->driver_data;
 	struct uart_port *port = state->uart_port;
 
+	if (port->ops->wake_peer)
+		port->ops->wake_peer(port);
+
 	if (!uart_circ_empty(&state->xmit) && state->xmit.buf &&
 	    !tty->stopped && !tty->hw_stopped)
 		port->ops->start_tx(port);
@@ -216,6 +219,8 @@ static void uart_shutdown(struct uart_state *state)
 	struct tty_port *port = &state->port;
 	struct tty_struct *tty = port->tty;
 
+	pr_err("%s\n", __func__);
+	
 	/*
 	 * Set the TTY IO error marker
 	 */
@@ -1273,6 +1278,8 @@ static void uart_close(struct tty_struct *tty, struct file *filp)
 	struct tty_port *port;
 	struct uart_port *uport;
 
+	pr_err("%s\n", __func__);
+
 	BUG_ON(!kernel_locked());
 
 	if (!state)
@@ -2090,7 +2097,19 @@ int uart_resume_port(struct uart_driver *drv, struct uart_port *uport)
 	/*
 	 * Re-enable the console device after suspending.
 	 */
-	if (uart_console(uport)) {
+	if (console_suspend_enabled && uart_console(uport)) {
+		/*
+		 * First try to use the console cflag setting.
+		 */
+		memset(&termios, 0, sizeof(struct ktermios));
+		termios.c_cflag = uport->cons->cflag;
+
+		/*
+		 * If that's unset, use the tty termios setting.
+		 */
+		if (port->tty && port->tty->termios && termios.c_cflag == 0)
+			termios = *(port->tty->termios);
+
 		uart_change_pm(state, 0);
 		uport->ops->set_termios(uport, &termios, NULL);
 		console_start(uport->cons);

@@ -61,7 +61,7 @@
 #include "scsiglue.h"
 
 MODULE_DESCRIPTION("Driver for In-System Design, Inc. ISD200 ASIC");
-MODULE_AUTHOR("Björn Stenberg <bjorn@haxx.se>");
+MODULE_AUTHOR("Bj?n Stenberg <bjorn@haxx.se>");
 MODULE_LICENSE("GPL");
 
 static int isd200_Initialization(struct us_data *us);
@@ -1524,9 +1524,7 @@ static void isd200_ata_command(struct scsi_cmnd *srb, struct us_data *us)
 
 	/* Make sure driver was initialized */
 
-	if (us->extra == NULL)
-		US_DEBUGP("ERROR Driver not initialized\n");
-
+	if (us->extra != NULL) {
 	scsi_set_resid(srb, 0);
 	/* scsi_bufflen might change in protocol translation to ata */
 	orig_bufflen = scsi_bufflen(srb);
@@ -1537,6 +1535,10 @@ static void isd200_ata_command(struct scsi_cmnd *srb, struct us_data *us)
 		isd200_invoke_transport(us, srb, &ataCdb);
 
 	isd200_srb_set_bufflen(srb, orig_bufflen);
+	}else{
+		US_DEBUGP("isd200_ata_command :: ERROR Driver not initialized\n");
+	}
+	
 }
 
 static int isd200_probe(struct usb_interface *intf,

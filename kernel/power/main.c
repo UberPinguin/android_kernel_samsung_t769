@@ -20,6 +20,8 @@ DEFINE_MUTEX(pm_mutex);
 unsigned int pm_flags;
 EXPORT_SYMBOL(pm_flags);
 
+extern void debug_print_active_locks(int type);
+
 #ifdef CONFIG_PM_SLEEP
 
 /* Routines for PM-transition notifications */
@@ -135,6 +137,18 @@ power_attr(pm_test);
 
 #endif /* CONFIG_PM_SLEEP */
 
+ssize_t wake_lock_dbg_show(
+	struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	debug_print_active_locks(0);
+	return sprintf(buf, "\n");
+}
+ssize_t wake_lock_dbg_store(
+	struct kobject *kobj, struct kobj_attribute *attr,
+	const char *buf, size_t n)
+{
+	return n;
+}
 struct kobject *power_kobj;
 
 /**
@@ -173,7 +187,11 @@ static ssize_t state_store(struct kobject *kobj, struct kobj_attribute *attr,
 			   const char *buf, size_t n)
 {
 #ifdef CONFIG_SUSPEND
+#ifdef CONFIG_EARLYSUSPEND
+	suspend_state_t state = PM_SUSPEND_ON;
+#else
 	suspend_state_t state = PM_SUSPEND_STANDBY;
+#endif
 	const char * const *s;
 #endif
 	char *p;
@@ -195,7 +213,14 @@ static ssize_t state_store(struct kobject *kobj, struct kobj_attribute *attr,
 			break;
 	}
 	if (state < PM_SUSPEND_MAX && *s)
+#ifdef CONFIG_EARLYSUSPEND
+		if (state == PM_SUSPEND_ON || valid_state(state)) {
+			error = 0;
+			request_suspend_state(state);
+		}
+#else
 		error = enter_state(state);
+#endif
 #endif
 
  Exit:
@@ -229,6 +254,12 @@ pm_trace_store(struct kobject *kobj, struct kobj_attribute *attr,
 power_attr(pm_trace);
 #endif /* CONFIG_PM_TRACE */
 
+#ifdef CONFIG_USER_WAKELOCK
+power_attr(wake_lock);
+power_attr(wake_unlock);
+power_attr(wake_lock_dbg);
+#endif
+
 static struct attribute * g[] = {
 	&state_attr.attr,
 #ifdef CONFIG_PM_TRACE
@@ -238,6 +269,11 @@ static struct attribute * g[] = {
 	&pm_async_attr.attr,
 #ifdef CONFIG_PM_DEBUG
 	&pm_test_attr.attr,
+#endif
+#ifdef CONFIG_USER_WAKELOCK
+	&wake_lock_attr.attr,
+	&wake_unlock_attr.attr,
+	&wake_lock_dbg_attr.attr,
 #endif
 #endif
 	NULL,
