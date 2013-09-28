@@ -122,6 +122,8 @@ struct s6e63m0 {
 
 #ifdef SMART_MTP
 	struct SMART_DIM smart;
+        boolean bMtpFirstReadFail;
+
 #endif
 };
 
@@ -616,15 +618,39 @@ static int lcdc_s6e63m0_panel_on(struct platform_device *pdev)
 		
 		if (PANEL_TYPE >= SMART_MTP_PANEL_ID) {
 			if(!is_load_mtp_offset) {
+				int i=0;
+				struct MTP_OFFSET tempMTP; 
+				// first read. just for logging.. can be removed. 
 				s6e63mo_read_mtp_info();
+                                memcpy(&tempMTP,&(lcd.smart.MTP),sizeof(tempMTP));
+
+				// lcd reset with enough sleep time!!
+				gpio_set_value(lcd_reset, 0);  
+				msleep(20);
+				gpio_set_value(lcd_reset, 1);
+				msleep(20);
+				
+				s6e63mo_read_mtp_info();
+
+                                if(memcmp(&tempMTP,&(lcd.smart.MTP),sizeof(tempMTP))!=0)
+                                {
+                                  lcd.bMtpFirstReadFail=true;
+				  is_load_mtp_offset = 0; // re-read MTP on next panel_on.
+  				  DPRINT("!!!!! WARNING!! Last MTP_READ has some problem!!! ");	
+                                }
+                                else
+                                 is_load_mtp_offset = 1;
 				
 				gpio_set_value(lcd_reset, 0);
 				msleep(2);
 				gpio_set_value(lcd_reset, 1);
 				
-				is_load_mtp_offset = 1;
 			}
 		}
+
+                if(lcd.bMtpFirstReadFail) // just for logging strange status..
+                  DPRINT("!!WARNING!! 1st MTP_READ was not same with 2nd! ");  
+
 		#endif
 		
 		s6e63m0_disp_on();
@@ -1235,6 +1261,10 @@ static int __devinit s6e63m0_probe(struct platform_device *pdev)
 	register_early_suspend(&lcd.early_suspend);
 #endif
 
+
+#ifdef SMART_MTP
+     lcd.bMtpFirstReadFail= false;
+#endif
 	return 0;
 }
 
